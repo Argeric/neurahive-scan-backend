@@ -16,5 +16,5 @@ type transaction struct {
 	Status            int        `gorm:"not null"`
 	ContractCreatedId uint64     `gorm:"not null;default:0"`
 	InterfaceId       string     `gorm:"type:varchar(10);not null"`
-	CreatedAt         *time.Time `gorm:"not null;index:idx_createdAt"`
+	CreatedAt         *time.Time `gorm:"not null;index:idx_createdAt,sort:desc"`
 }
