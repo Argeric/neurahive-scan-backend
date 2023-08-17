@@ -3,9 +3,9 @@ package store
 import "time"
 
 type transaction struct {
-	Epoch             uint64     `gorm:"not null;primary_key"`
-	BlockPosition     uint64     `gorm:"not null;primary_key"`
-	TxPosition        uint64     `gorm:"not null;primary_key"`
+	Epoch             uint64     `gorm:"primary_key;autoIncrement:false"`
+	BlockPosition     uint64     `gorm:"primary_key;autoIncrement:false"`
+	TxPosition        uint64     `gorm:"primary_key;autoIncrement:false"`
 	Hash              string     `gorm:"type:varchar(66);not null;index:idx_hash,length:10"`
 	FromId            uint64     `gorm:"not null"`
 	Nonce             uint64     `gorm:"not null"`
