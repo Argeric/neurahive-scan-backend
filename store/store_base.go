@@ -1,9 +1,9 @@
 package store
 
 import (
+	"github.com/Argeric/neurahive-scan-backend/util"
 	"github.com/Conflux-Chain/go-conflux-sdk/types/errors"
 	"gorm.io/gorm"
-	"neurahive-scan-backend/common"
 )
 
 type baseStore struct {
@@ -15,7 +15,7 @@ func newBaseStore(db *gorm.DB) *baseStore {
 }
 
 func (baseStore) IsRecordNotFound(err error) bool {
-	return errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, common.ErrNotFound)
+	return errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, util.ErrNotFound)
 }
 
 func (bs *baseStore) Close() error {

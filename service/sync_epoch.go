@@ -1,4 +1,4 @@
-package sync
+package service
 
 import sdk "github.com/Conflux-Chain/go-conflux-sdk"
 

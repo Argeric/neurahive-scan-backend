@@ -1,8 +1,11 @@
 package store
 
-import "time"
+import (
+	"gorm.io/gorm"
+	"time"
+)
 
-type transaction struct {
+type Tx struct {
 	Epoch             uint64     `gorm:"primary_key;autoIncrement:false"`
 	BlockPosition     uint64     `gorm:"primary_key;autoIncrement:false"`
 	TxPosition        uint64     `gorm:"primary_key;autoIncrement:false"`
@@ -17,4 +20,18 @@ type transaction struct {
 	ContractCreatedId uint64     `gorm:"not null;default:0"`
 	InterfaceId       string     `gorm:"type:varchar(10);not null"`
 	CreatedAt         *time.Time `gorm:"not null;index:idx_createdAt,sort:desc"`
+}
+
+func (Tx) TableName() string {
+	return "tx"
+}
+
+type txStore struct {
+	*baseStore
+}
+
+func newTxStore(db *gorm.DB) *txStore {
+	return &txStore{
+		baseStore: newBaseStore(db),
+	}
 }
