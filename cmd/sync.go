@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"github.com/Argeric/neurahive-scan-backend/service"
 	"github.com/Argeric/neurahive-scan-backend/util"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"sync"
 )
@@ -26,20 +28,21 @@ func init() {
 	)
 }
 
-func startSyncService(command *cobra.Command, []string) {
+func startSyncService(*cobra.Command, []string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 
-	storeCtx := util.MustInitStoreContext()
-	defer storeCtx.Close()
-
-	syncCtx := util.MustInitSyncContext(storeCtx)
+	syncCtx := util.MustInitSyncContext()
 	defer syncCtx.Close()
 
-	if syncOpt.dbSyncEnabled { // start DB sync
-		syncer := startSyncCfxDatabase(ctx, &wg, syncCtx)
-		subs = append(subs, syncer)
-	}
+	startSyncCfxDatabase(ctx, &wg, syncCtx)
 
 	util.GracefulShutdown(&wg, cancel)
+}
+
+func startSyncCfxDatabase(ctx context.Context, wg *sync.WaitGroup, syncCtx util.SyncContext) {
+	logrus.Info("Start to sync core space blockchain data into database")
+
+	syncer := service.MustNewDatabaseSyncer(syncCtx.Cfx, syncCtx.DB)
+	go syncer.Sync(ctx, wg)
 }

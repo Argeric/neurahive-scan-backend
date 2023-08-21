@@ -3,13 +3,14 @@ package util
 import (
 	"github.com/Argeric/neurahive-scan-backend/config"
 	"github.com/Argeric/neurahive-scan-backend/store"
+	"github.com/Argeric/neurahive-scan-backend/util/rpc"
 	sdk "github.com/Conflux-Chain/go-conflux-sdk"
 )
 
 // SyncContext context to hold sdk clients for blockchain interoperation.
 type SyncContext struct {
-	DB  *store.MysqlStore
 	Cfx *sdk.Client
+	DB  *store.MysqlStore
 }
 
 func MustInitSyncContext() SyncContext {
@@ -19,9 +20,7 @@ func MustInitSyncContext() SyncContext {
 		ctx.DB = config.MustOpenOrCreate()
 	}
 
-	if storeCtx.CfxDB != nil || storeCtx.CfxCache != nil {
-		ctx.Cfx = rpc.MustNewCfxClientFromViper()
-	}
+	ctx.Cfx = rpc.MustNewCfxClientFromViper()
 
 	return ctx
 }
