@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/Argeric/neurahive-scan-backend/store"
 	sdk "github.com/Conflux-Chain/go-conflux-sdk"
+	"github.com/Conflux-Chain/go-conflux-sdk/types"
 	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
@@ -40,7 +42,36 @@ func MustNewEpochSyncer(cfx sdk.ClientOperator, db *store.MysqlStore) *EpochSync
 		syncIntervalCatchUp: time.Millisecond,
 	}
 
+	// Load last sync epoch information
+	syncer.mustLoadLastSyncEpoch()
+
 	return syncer
+}
+
+// Load last sync epoch from databse to continue synchronization.
+func (syncer *EpochSyncer) mustLoadLastSyncEpoch() {
+	loaded, err := syncer.loadLastSyncEpoch()
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed to load last sync epoch range from db")
+	}
+
+	// Load db sync start epoch config on initial loading if necessary.
+	if !loaded && syncer.conf != nil {
+		syncer.epochFrom = syncer.conf.FromEpoch
+	}
+}
+
+func (syncer *EpochSyncer) loadLastSyncEpoch() (loaded bool, err error) {
+	maxEpoch, ok, err := syncer.db.MaxEpoch()
+	if err != nil {
+		return false, errors.WithMessage(err, "failed to get max epoch from epoch table")
+	}
+
+	if ok {
+		syncer.epochFrom = maxEpoch + 1
+	}
+
+	return ok, nil
 }
 
 func (syncer *EpochSyncer) Sync(ctx context.Context, wg *sync.WaitGroup) {
@@ -95,5 +126,22 @@ func (syncer *EpochSyncer) doTicker(ticker *time.Ticker) error {
 }
 
 func (syncer *EpochSyncer) syncOnce() (bool, error) {
+	logger := logrus.WithField("epochFrom", syncer.epochFrom)
+
+	epoch, err := syncer.cfx.GetEpochNumber(types.EpochLatestState)
+	if err != nil {
+		logger.Debug("Db syncer skipped due to getting latest state failure")
+		return false, errors.WithMessage(
+			err, "failed to query the latest state epoch number",
+		)
+	}
+
+	maxEpochTo := epoch.ToInt().Uint64()
+	if syncer.epochFrom > maxEpochTo {
+		logrus.Debug("Db syncer skipped due to already catch-up")
+		return true, nil
+	}
+
+	logger.Debug("DB sync started to sync with epoch range")
 
 }

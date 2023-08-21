@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"gorm.io/gorm"
 	"time"
 )
@@ -23,4 +24,20 @@ func newEpochStore(db *gorm.DB) *epochStore {
 	return &epochStore{
 		baseStore: newBaseStore(db),
 	}
+}
+
+// MaxEpoch returns the max epoch within the map store.
+func (es *epochStore) MaxEpoch() (uint64, bool, error) {
+	var maxEpoch sql.NullInt64
+
+	db := es.db.Model(&Epoch{}).Select("MAX(epoch)")
+	if err := db.Find(&maxEpoch).Error; err != nil {
+		return 0, false, err
+	}
+
+	if !maxEpoch.Valid {
+		return 0, false, nil
+	}
+
+	return uint64(maxEpoch.Int64), true, nil
 }
