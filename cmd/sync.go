@@ -43,6 +43,6 @@ func startSyncService(*cobra.Command, []string) {
 func startSyncCfxDatabase(ctx context.Context, wg *sync.WaitGroup, syncCtx util.SyncContext) {
 	logrus.Info("Start to sync core space blockchain data into database")
 
-	syncer := service.MustNewDatabaseSyncer(syncCtx.Cfx, syncCtx.DB)
-	go syncer.Sync(ctx, wg)
+	syncer := service.MustNewEpochSyncer(syncCtx.Cfx, syncCtx.DB)
+	go syncer.Run(ctx, wg)
 }
