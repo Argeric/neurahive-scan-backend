@@ -2,7 +2,8 @@ package sync
 
 import (
 	"context"
-	"github.com/Argeric/neurahive-scan-backend/store"
+	"github.com/Argeric/neurahive-scan-backend/store/blockchain"
+	"github.com/Argeric/neurahive-scan-backend/store/db"
 	"github.com/Argeric/neurahive-scan-backend/util"
 	sdk "github.com/Conflux-Chain/go-conflux-sdk"
 	"github.com/Conflux-Chain/go-conflux-sdk/types"
@@ -22,7 +23,7 @@ type syncConfig struct {
 type EpochSyncer struct {
 	conf                *syncConfig
 	cfx                 sdk.ClientOperator
-	db                  *store.MysqlStore
+	db                  *db.MysqlStore
 	epochFrom           uint64
 	maxSyncEpochs       uint64
 	syncIntervalNormal  time.Duration
@@ -30,7 +31,7 @@ type EpochSyncer struct {
 }
 
 // MustNewEpochSyncer creates an instance of DatabaseSyncer to sync blockchain data.
-func MustNewEpochSyncer(cfx sdk.ClientOperator, db *store.MysqlStore) *EpochSyncer {
+func MustNewEpochSyncer(cfx sdk.ClientOperator, db *db.MysqlStore) *EpochSyncer {
 	var conf syncConfig
 	viperutil.MustUnmarshalKey("sync", &conf)
 
@@ -148,7 +149,7 @@ func (syncer *EpochSyncer) syncOnce() (bool, error) {
 
 	// get epoch data
 	logger.Debug("DB sync started to sync with epoch range")
-	data, err := QueryEpochData(syncer.cfx, syncer.epochFrom, syncer.conf.UseBatch)
+	data, err := blockchain.QueryEpochData(syncer.cfx, syncer.epochFrom, syncer.conf.UseBatch)
 	if errors.Is(err, util.ErrEpochPivotSwitched) {
 		logger.WithError(err).Info("Db syncer failed to query epoch data due to pivot switch")
 		return false, errors.WithMessagef(err, "failed to query epoch due to pivot switch at epoch %v", syncer.epochFrom)

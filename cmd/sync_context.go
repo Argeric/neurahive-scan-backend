@@ -1,7 +1,7 @@
-package util
+package cmd
 
 import (
-	"github.com/Argeric/neurahive-scan-backend/store"
+	"github.com/Argeric/neurahive-scan-backend/store/db"
 	"github.com/Argeric/neurahive-scan-backend/util/rpc"
 	sdk "github.com/Conflux-Chain/go-conflux-sdk"
 )
@@ -9,13 +9,13 @@ import (
 // SyncContext context to hold sdk clients for blockchain interoperation.
 type SyncContext struct {
 	Cfx *sdk.Client
-	DB  *store.MysqlStore
+	DB  *db.MysqlStore
 }
 
 func MustInitSyncContext() SyncContext {
 	var ctx SyncContext
 
-	if config := store.MustNewConfigFromViper("database"); config.Enabled {
+	if config := db.MustNewConfigFromViper("database"); config.Enabled {
 		ctx.DB = config.MustOpenOrCreate()
 	}
 

@@ -1,7 +1,7 @@
-package store
+package db
 
 import (
-	"github.com/Argeric/neurahive-scan-backend/sync"
+	"github.com/Argeric/neurahive-scan-backend/store/blockchain"
 	"gorm.io/gorm"
 )
 
@@ -27,7 +27,7 @@ func MustNewStore(db *gorm.DB, config *Config) *MysqlStore {
 	}
 }
 
-func (ms *MysqlStore) Push(data *sync.EpochData) error {
+func (ms *MysqlStore) Push(data *blockchain.EpochData) error {
 	return nil
 }
 
