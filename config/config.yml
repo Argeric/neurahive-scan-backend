@@ -1,9 +1,20 @@
 server:
   port: 7788
 
-rpc:
-  url: http://main.confluxrpc.org
+# Core space SDK client configurations
+cfx:
+  # Fullnode HTTP endpoint
+  http: http://main.confluxrpc.com
+  # Retry times if failure, if 0 never
+  retry: 0
+  # Interval duration before each retry
+  retryInterval: 1s
+  # Request timeout duration
+  requestTimeout: 3s
+  # Max connections allowed per fullnode
+  maxConnsPerHost: 1024
 
+# MySQL database configurations
 database:
   enabled: true
   host: 127.0.0.1:3306
@@ -14,6 +25,7 @@ database:
   maxOpenConns: 10
   maxIdleConns: 10
 
+# Logs configurations
 log:
   # Available levels are `trace`, `debug`, `info`, `error` and `fatal`
   level: info
