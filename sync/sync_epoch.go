@@ -1,8 +1,9 @@
-package service
+package sync
 
 import (
 	"context"
 	"github.com/Argeric/neurahive-scan-backend/store"
+	"github.com/Argeric/neurahive-scan-backend/util"
 	sdk "github.com/Conflux-Chain/go-conflux-sdk"
 	"github.com/Conflux-Chain/go-conflux-sdk/types"
 	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
@@ -15,6 +16,7 @@ import (
 type syncConfig struct {
 	Preload   uint64
 	FromEpoch uint64
+	UseBatch  bool
 }
 
 type EpochSyncer struct {
@@ -128,6 +130,7 @@ func (syncer *EpochSyncer) doTicker(ticker *time.Ticker) error {
 func (syncer *EpochSyncer) syncOnce() (bool, error) {
 	logger := logrus.WithField("epochFrom", syncer.epochFrom)
 
+	// get latest state epoch
 	epoch, err := syncer.cfx.GetEpochNumber(types.EpochLatestState)
 	if err != nil {
 		logger.Debug("Db syncer skipped due to getting latest state failure")
@@ -136,12 +139,103 @@ func (syncer *EpochSyncer) syncOnce() (bool, error) {
 		)
 	}
 
+	// check latest state epoch
 	maxEpochTo := epoch.ToInt().Uint64()
 	if syncer.epochFrom > maxEpochTo {
 		logrus.Debug("Db syncer skipped due to already catch-up")
 		return true, nil
 	}
 
+	// get epoch data
 	logger.Debug("DB sync started to sync with epoch range")
+	data, err := QueryEpochData(syncer.cfx, syncer.epochFrom, syncer.conf.UseBatch)
+	if errors.Is(err, util.ErrEpochPivotSwitched) {
+		logger.WithError(err).Info("Db syncer failed to query epoch data due to pivot switch")
+		return false, errors.WithMessagef(err, "failed to query epoch due to pivot switch at epoch %v", syncer.epochFrom)
+	}
+	if err != nil {
+		return false, errors.WithMessagef(err, "failed to query epoch data for epoch %v", syncer.epochFrom)
+	}
 
+	// check pivot hash
+	latestPivotHash, err := syncer.getStoreLatestPivotHash()
+	if err != nil {
+		logger.WithError(err).Error("Db syncer failed to get latest pivot hash from db for parent hash check")
+		return false, errors.WithMessage(err, "failed to get latest pivot hash")
+	}
+	if len(latestPivotHash) > 0 && data.GetPivotBlock().ParentHash != latestPivotHash {
+		latestStoreEpochNo := syncer.latestStoreEpoch()
+		logger.WithFields(logrus.Fields{
+			"latestStoreEpoch": latestStoreEpochNo,
+			"latestPivotHash":  latestPivotHash,
+		}).Warn("Db syncer popping latest epoch from db store due to parent hash mismatched")
+		if err := syncer.pivotSwitchRevert(latestStoreEpochNo); err != nil {
+			logger.WithError(err).Error(
+				"Db syncer failed to pop latest epoch from db store due to parent hash mismatched",
+			)
+			return false, errors.WithMessage(
+				err, "failed to pop latest epoch from db store due to parent hash mismatched",
+			)
+		}
+		return false, nil
+	}
+
+	// persist db
+	if err = syncer.db.Push(&data); err != nil {
+		logger.WithError(err).Error("Db syncer failed to save epoch data to db")
+		return false, errors.WithMessage(err, "failed to save epoch data to db")
+	}
+
+	// increase epochFrom
+	syncer.epochFrom += 1
+
+	return true, nil
+}
+
+func (syncer *EpochSyncer) getStoreLatestPivotHash() (types.Hash, error) {
+	if syncer.epochFrom == 0 { // no epoch synchronized yet
+		return "", nil
+	}
+
+	latestEpochNo := syncer.latestStoreEpoch()
+	pivotHash, _, err := syncer.db.PivotHash(latestEpochNo)
+	return types.Hash(pivotHash), err
+}
+
+func (syncer *EpochSyncer) latestStoreEpoch() uint64 {
+	if syncer.epochFrom > 0 {
+		return syncer.epochFrom - 1
+	}
+
+	return 0
+}
+
+func (syncer *EpochSyncer) pivotSwitchRevert(revertTo uint64) error {
+	// check
+	logger := logrus.WithFields(logrus.Fields{
+		"revertToEpoch":    revertTo,
+		"latestStoreEpoch": syncer.latestStoreEpoch(),
+	})
+	if revertTo == 0 {
+		logger.Debug("Db syncer skipped pivot switch revert due to genesis epoch cannot revert")
+		return errors.New("genesis epoch must not be reverted")
+	}
+	if revertTo >= syncer.epochFrom {
+		logger.Debug("Db syncer skipped pivot switch revert due to not catched up yet")
+		return nil
+	}
+
+	// pop from db
+	logger.Info("Db syncer reverting epoch data due to pivot chain switch")
+	if err := syncer.db.Pop(revertTo); err != nil {
+		logger.WithError(err).Error(
+			"Db syncer failed to pop epoch data from db due to pivot switch",
+		)
+		return errors.WithMessage(err, "failed to pop epoch data from db")
+	}
+
+	// update epochFrom
+	syncer.epochFrom = revertTo
+
+	return nil
 }

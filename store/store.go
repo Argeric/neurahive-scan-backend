@@ -1,7 +1,7 @@
 package store
 
 import (
-	"github.com/Argeric/neurahive-scan-backend/config"
+	"github.com/Argeric/neurahive-scan-backend/sync"
 	"gorm.io/gorm"
 )
 
@@ -12,10 +12,10 @@ type MysqlStore struct {
 	*txStore
 	*submitStore
 
-	config *config.DBConfig
+	config *Config
 }
 
-func MustNewStore(db *gorm.DB, config *config.DBConfig) *MysqlStore {
+func MustNewStore(db *gorm.DB, config *Config) *MysqlStore {
 	return &MysqlStore{
 		baseStore:   newBaseStore(db),
 		epochStore:  newEpochStore(db),
@@ -25,4 +25,12 @@ func MustNewStore(db *gorm.DB, config *config.DBConfig) *MysqlStore {
 
 		config: config,
 	}
+}
+
+func (ms *MysqlStore) Push(data *sync.EpochData) error {
+	return nil
+}
+
+func (ms *MysqlStore) Pop(epoch uint64) error {
+	return nil
 }

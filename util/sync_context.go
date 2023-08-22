@@ -1,7 +1,6 @@
 package util
 
 import (
-	"github.com/Argeric/neurahive-scan-backend/config"
 	"github.com/Argeric/neurahive-scan-backend/store"
 	"github.com/Argeric/neurahive-scan-backend/util/rpc"
 	sdk "github.com/Conflux-Chain/go-conflux-sdk"
@@ -16,7 +15,7 @@ type SyncContext struct {
 func MustInitSyncContext() SyncContext {
 	var ctx SyncContext
 
-	if config := config.MustNewConfigFromViper("database"); config.Enabled {
+	if config := store.MustNewConfigFromViper("database"); config.Enabled {
 		ctx.DB = config.MustOpenOrCreate()
 	}
 

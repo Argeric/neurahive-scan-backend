@@ -41,3 +41,15 @@ func (es *epochStore) MaxEpoch() (uint64, bool, error) {
 
 	return uint64(maxEpoch.Int64), true, nil
 }
+
+// pivotHash returns the pivot hash of the given epoch.
+func (es *epochStore) PivotHash(epoch uint64) (string, bool, error) {
+	var ep Epoch
+
+	existed, err := es.Exists(&ep, "epoch = ?", epoch)
+	if err != nil {
+		return "", false, err
+	}
+
+	return ep.PivotHash, existed, nil
+}
