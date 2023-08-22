@@ -1,8 +1,9 @@
 package db
 
 import (
+	"errors"
+
 	"github.com/Argeric/neurahive-scan-backend/util"
-	"github.com/Conflux-Chain/go-conflux-sdk/types/errors"
 	"gorm.io/gorm"
 )
 
