@@ -105,7 +105,7 @@ func (config *Config) mustCreateDatabaseIfAbsent() bool {
 		return false
 	}
 
-	if err = db.Exec("CREATE DATABASE IF NOT EXISTS" + config.Database).Error; err != nil {
+	if err = db.Exec("CREATE DATABASE IF NOT EXISTS " + config.Database).Error; err != nil {
 		logrus.WithError(err).Fatal("Failed to create database")
 	}
 

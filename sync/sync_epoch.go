@@ -150,6 +150,7 @@ func (syncer *EpochSyncer) syncOnce() (bool, error) {
 	// get epoch data
 	logger.Debug("DB sync started to sync with epoch range")
 	data, err := blockchain.QueryEpochData(syncer.cfx, syncer.epochFrom, syncer.conf.UseBatch)
+	logrus.WithField("epoch", data.Number).Infof("data: %v", data)
 	if errors.Is(err, util.ErrEpochPivotSwitched) {
 		logger.WithError(err).Info("Db syncer failed to query epoch data due to pivot switch")
 		return false, errors.WithMessagef(err, "failed to query epoch due to pivot switch at epoch %v", syncer.epochFrom)

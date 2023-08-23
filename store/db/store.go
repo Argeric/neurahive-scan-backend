@@ -28,6 +28,7 @@ func MustNewStore(db *gorm.DB, config *Config) *MysqlStore {
 }
 
 func (ms *MysqlStore) Push(data *blockchain.EpochData) error {
+	//logrus.WithField("epoch", data.Number).Infof("data: %v", data)
 	return nil
 }
 

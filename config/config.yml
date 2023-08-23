@@ -18,8 +18,8 @@ cfx:
 database:
   enabled: true
   host: 127.0.0.1:3306
-  username: conflux_neurahive
-  password: conflux_neurahive
+  username: root
+  password: root123!@#
   database: conflux_neurahive
   connMaxLifeTime: 3m
   maxOpenConns: 10
