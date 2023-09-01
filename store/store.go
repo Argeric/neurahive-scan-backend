@@ -18,7 +18,6 @@ var (
 type MysqlStore struct {
 	baseStore *mysql.Store
 	*blockStore
-	*txStore
 	*submitStore
 	*addressStore
 }
@@ -27,7 +26,6 @@ func MustNewStore(db *gorm.DB) *MysqlStore {
 	return &MysqlStore{
 		baseStore:    mysql.NewStore(db),
 		blockStore:   newBlockStore(db),
-		txStore:      newTxStore(db),
 		submitStore:  newSubmitStore(db),
 		addressStore: newAddressStore(db),
 	}
@@ -40,14 +38,9 @@ func (ms *MysqlStore) Push(data *EthData) error {
 			return errors.WithMessagef(err, "failed to save blocks")
 		}
 
-		// save transactions
-		if err := ms.txStore.Add(dbTx, data); err != nil {
-			return errors.WithMessage(err, "failed to save txs")
-		}
-
-		// save submit event logs
+		// save flow submits
 		if err := ms.submitStore.Add(dbTx, data); err != nil {
-			return errors.WithMessage(err, "failed to save submit event logs")
+			return errors.WithMessage(err, "failed to save flow submits")
 		}
 
 		return nil
