@@ -1,10 +1,12 @@
 package store
 
 import (
+	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
 	"github.com/Conflux-Chain/neurahive-client/contract"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/openweb3/web3go/types"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
@@ -49,12 +51,22 @@ func (Submit) TableName() string {
 }
 
 type submitStore struct {
-	as *addressStore
+	as            *addressStore
+	flowAddr      string
+	flowSubmitSig string
 }
 
 func newSubmitStore(db *gorm.DB) *submitStore {
+	var flow struct {
+		Address              string
+		SubmitEventSignature string
+	}
+	viperutil.MustUnmarshalKey("flow", &flow)
+
 	return &submitStore{
-		as: newAddressStore(db),
+		as:            newAddressStore(db),
+		flowAddr:      flow.Address,
+		flowSubmitSig: flow.SubmitEventSignature,
 	}
 }
 
@@ -70,6 +82,12 @@ func (ss *submitStore) Add(dbTx *gorm.DB, data *EthData) error {
 		}
 
 		for _, log := range receipt.Logs {
+			contract := log.Address.String()
+			topic0 := log.Topics[0].String()
+			if !strings.EqualFold(contract, ss.flowAddr) || topic0 != ss.flowSubmitSig {
+				continue
+			}
+
 			submit, err := newSubmit(&blockTime, log)
 			if err != nil {
 				return err
@@ -90,4 +108,8 @@ func (ss *submitStore) Add(dbTx *gorm.DB, data *EthData) error {
 	}
 
 	return dbTx.CreateInBatches(submits, batchSizeInsert).Error
+}
+
+func (ss *submitStore) Pop(dbTx *gorm.DB, block uint64) error {
+	return dbTx.Where("block_number >= ?", block).Delete(&Submit{}).Error
 }

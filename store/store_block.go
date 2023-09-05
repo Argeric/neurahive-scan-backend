@@ -67,3 +67,7 @@ func (bs *blockStore) BlockHash(blockNumber uint64) (string, bool, error) {
 
 	return blk.Hash, existed, nil
 }
+
+func (bs *blockStore) Pop(dbTx *gorm.DB, block uint64) error {
+	return dbTx.Where("block_number >= ?", block).Delete(&Block{}).Error
+}

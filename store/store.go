@@ -35,7 +35,7 @@ func (ms *MysqlStore) Push(data *EthData) error {
 	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
 		// save blocks
 		if err := ms.blockStore.Add(dbTx, data); err != nil {
-			return errors.WithMessagef(err, "failed to save blocks")
+			return errors.WithMessagef(err, "failed to save block")
 		}
 
 		// save flow submits
@@ -48,6 +48,21 @@ func (ms *MysqlStore) Push(data *EthData) error {
 }
 
 func (ms *MysqlStore) Pop(block uint64) error {
-	// TODO
-	return nil
+	maxBlock, ok, err := ms.MaxBlock()
+	if err != nil {
+		return errors.WithMessage(err, "failed to get max block")
+	}
+	if !ok || block > maxBlock {
+		return nil
+	}
+
+	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
+		if err := ms.blockStore.Pop(dbTx, block); err != nil {
+			return errors.WithMessage(err, "failed to remove block")
+		}
+		if err := ms.submitStore.Pop(dbTx, block); err != nil {
+			return errors.WithMessage(err, "failed to remove flow submits")
+		}
+		return nil
+	})
 }

@@ -1,0 +1,24 @@
+# Blockchain sync configurations
+sync:
+  # The block number from which to sync flow submit
+  blockWhenFlowCreated: 136228690
+  # To avoid pivot switch frequently, skip some blocks ahead of the latest block
+  skipBlocksAheadLatest: 30
+
+# Flow contract info configurations
+flow:
+  # Flow contract address
+  address: 0xcb7afff6f048ec1fb033aa7b495ed0dd932c8656
+  # Flow submit event signature
+  submitEventSignature: 0x167ce04d2aa1981994d3a31695da0d785373335b1078cec239a1a3a2c7675555
+
+# MySQL database configurations
+store:
+  mysql:
+    host: :3306
+    username:
+    password:
+    database:
+    # connMaxLifeTime: 3m
+    # maxOpenConns: 10
+    # maxIdleConns: 10
