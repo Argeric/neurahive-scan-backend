@@ -1,7 +1,8 @@
 package store
 
 import (
-	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
+	"encoding/hex"
+	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	"github.com/Conflux-Chain/neurahive-client/contract"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/openweb3/web3go/types"
@@ -24,7 +25,7 @@ type Submit struct {
 	SubmissionLength uint64     `gorm:"not null"`
 }
 
-func newSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
+func NewSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
 	contract, _ := contract.NewFlowFilterer(common.HexToAddress(""), nil)
 	flowSubmit, err := contract.ParseSubmit(*log.ToEthLog())
 	if err != nil {
@@ -36,7 +37,7 @@ func newSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
 		TxHash:           log.TxHash.String()[2:],
 		CreatedAt:        blockTime,
 		Sender:           flowSubmit.Sender.String()[2:],
-		Identity:         string(flowSubmit.Identity[:]),
+		Identity:         hex.EncodeToString(flowSubmit.Identity[:]),
 		SubmissionIndex:  flowSubmit.SubmissionIndex.Uint64(),
 		StartPos:         flowSubmit.StartPos.Uint64(),
 		Length:           flowSubmit.Length.Uint64(),
@@ -46,35 +47,12 @@ func newSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
 	return submit, nil
 }
 
-func (Submit) TableName() string {
-	return "submits"
-}
-
-type submitStore struct {
-	as            *addressStore
-	flowAddr      string
-	flowSubmitSig string
-}
-
-func newSubmitStore(db *gorm.DB) *submitStore {
-	var flow struct {
-		Address              string
-		SubmitEventSignature string
-	}
-	viperutil.MustUnmarshalKey("flow", &flow)
-
-	return &submitStore{
-		as:            newAddressStore(db),
-		flowAddr:      flow.Address,
-		flowSubmitSig: flow.SubmitEventSignature,
-	}
-}
-
-func (ss *submitStore) Add(dbTx *gorm.DB, data *EthData) error {
+func NewSubmits(data *EthData, flowAddr, flowSubmitSig string, as *AddressStore) ([]*Submit, error) {
 	block := data.Block
 	blockTime := time.Unix(int64(block.Timestamp), 0)
 
 	var submits []*Submit
+
 	for _, tx := range block.Transactions.Transactions() {
 		receipt := data.Receipts[tx.Hash]
 		if receipt == nil || !IsTxExecutedInBlock(&tx, receipt) {
@@ -84,18 +62,18 @@ func (ss *submitStore) Add(dbTx *gorm.DB, data *EthData) error {
 		for _, log := range receipt.Logs {
 			contract := log.Address.String()
 			topic0 := log.Topics[0].String()
-			if !strings.EqualFold(contract, ss.flowAddr) || topic0 != ss.flowSubmitSig {
+			if !strings.EqualFold(contract, flowAddr) || topic0 != flowSubmitSig {
 				continue
 			}
 
-			submit, err := newSubmit(&blockTime, log)
+			submit, err := NewSubmit(&blockTime, log)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
-			senderId, err := ss.as.Add(nil, submit.Sender, &blockTime)
+			senderId, err := as.Add(nil, submit.Sender, &blockTime)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			submit.SenderId = senderId
@@ -103,10 +81,24 @@ func (ss *submitStore) Add(dbTx *gorm.DB, data *EthData) error {
 		}
 	}
 
-	if len(submits) == 0 {
-		return nil
-	}
+	return submits, nil
+}
 
+func (Submit) TableName() string {
+	return "submits"
+}
+
+type submitStore struct {
+	baseStore *mysql.Store
+}
+
+func newSubmitStore(db *gorm.DB) *submitStore {
+	return &submitStore{
+		baseStore: mysql.NewStore(db),
+	}
+}
+
+func (ss *submitStore) Add(dbTx *gorm.DB, submits []*Submit) error {
 	return dbTx.CreateInBatches(submits, batchSizeInsert).Error
 }
 

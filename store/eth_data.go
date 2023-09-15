@@ -1,7 +1,10 @@
 package store
 
 import (
+	"context"
+	set "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
+	rpc "github.com/openweb3/go-rpc-provider"
 	"github.com/openweb3/web3go"
 	"github.com/openweb3/web3go/types"
 	"github.com/pkg/errors"
@@ -36,12 +39,12 @@ func QueryEthData(w3c *web3go.Client, blockNumber uint64) (*EthData, error) {
 
 	// get receipt
 	txReceipts := map[common.Hash]*types.Receipt{}
-	blockTxs := block.Transactions.Transactions()
-	if len(blockTxs) != len(blockReceipts) {
-		return nil, errors.Errorf("block receipts number mismatch, rcpts %v, txs %v", len(blockReceipts), len(blockTxs))
+	blockTxHashes := block.Transactions.Hashes()
+	if len(blockTxHashes) != len(blockReceipts) {
+		return nil, errors.Errorf("block receipts number mismatch, rcpts %v, txs %v", len(blockReceipts), len(blockTxHashes))
 	}
-	for i := 0; i < len(blockTxs); i++ {
-		txHash := blockTxs[i].Hash
+	for i := 0; i < len(blockTxHashes); i++ {
+		txHash := blockTxHashes[i]
 		var receipt *types.Receipt
 		if blockReceipts == nil {
 			return nil, errors.WithMessage(ErrChainReorged, "batch retrieved block receipts nil")
@@ -66,4 +69,60 @@ func QueryEthData(w3c *web3go.Client, blockNumber uint64) (*EthData, error) {
 	}
 
 	return &EthData{blockNumber, block, txReceipts}, nil
+}
+
+func QueryFlowSubmits(w3c *web3go.Client, blockFrom, blockTo uint64, flowAddr common.Address, flowSubmitSig common.Hash) ([]types.Log, error) {
+	bnFrom := types.NewBlockNumber(int64(blockFrom))
+	bnTo := types.NewBlockNumber(int64(blockTo))
+	logFilter := types.FilterQuery{
+		FromBlock: &bnFrom,
+		ToBlock:   &bnTo,
+		Addresses: []common.Address{flowAddr},
+		Topics:    [][]common.Hash{{flowSubmitSig}},
+	}
+	return w3c.Eth.Logs(logFilter)
+}
+
+func MapBlockNum2Time(ctx context.Context, w3c *web3go.Client, blkNums []types.BlockNumber, batchSize uint64) (map[uint64]uint64, error) {
+	if len(blkNums) == 0 {
+		return nil, errors.New("no block numbers")
+	}
+
+	blkNumSet := set.NewSet()
+	for _, num := range blkNums {
+		blkNumSet.Add(num)
+	}
+
+	blockNum2Time := make(map[uint64]uint64)
+	blkNumSlice := blkNumSet.ToSlice()
+	blkNumSize := len(blkNumSlice)
+	for i := 0; i < blkNumSize; i += int(batchSize) {
+		end := i + int(batchSize)
+		if end > blkNumSize {
+			end = blkNumSize
+		}
+		blockNums := blkNumSlice[i:end]
+
+		batch := make([]rpc.BatchElem, 0)
+		for _, blkNum := range blockNums {
+			elem := rpc.BatchElem{
+				Method: "eth_getBlockByNumber",
+				Args:   []interface{}{blkNum, false},
+				Result: new(types.Block),
+			}
+			batch = append(batch, elem)
+		}
+
+		err := w3c.Eth.BatchCallContext(ctx, batch)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, elem := range batch {
+			block := elem.Result.(*types.Block)
+			blockNum2Time[block.Number.Uint64()] = block.Timestamp
+		}
+	}
+
+	return blockNum2Time, nil
 }

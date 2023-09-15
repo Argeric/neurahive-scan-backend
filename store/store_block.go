@@ -14,7 +14,7 @@ type Block struct {
 	CreatedAt   *time.Time `gorm:"not null;index:idx_block_time,sort:desc"`
 }
 
-func newBlock(data *types.Block) *Block {
+func NewBlock(data *types.Block) *Block {
 	blockTime := time.Unix(int64(data.Timestamp), 0)
 	return &Block{
 		BlockNumber: data.Number.Uint64(),
@@ -37,8 +37,7 @@ func newBlockStore(db *gorm.DB) *blockStore {
 	}
 }
 
-func (bs *blockStore) Add(dbTx *gorm.DB, data *EthData) error {
-	block := newBlock(data.Block)
+func (bs *blockStore) Add(dbTx *gorm.DB, block *Block) error {
 	return dbTx.Create(block).Error
 }
 

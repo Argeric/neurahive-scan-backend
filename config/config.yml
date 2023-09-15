@@ -1,9 +1,26 @@
+# EVM space SDK client configurations
+eth:
+  # Fullnode rpc url
+  url: http://evmtestnet.confluxrpc.com
+  # Retry times if failure, if 0 never
+  retry: 0
+  # Interval duration before each retry
+  retryInterval: 1s
+  # Request timeout duration
+  requestTimeout: 3s
+  # Max connections allowed per fullnode
+  maxConnsPerHost: 1024
+
 # Blockchain sync configurations
 sync:
   # The block number from which to sync flow submit
-  blockWhenFlowCreated: 136228690
+  blockWhenFlowCreated: 134253185
   # To avoid pivot switch frequently, skip some blocks ahead of the latest block
-  skipBlocksAheadLatest: 30
+  # delayBlocksAgainstLatest: 30
+  # The number of blocks to query at a time during catchup, 0 means no limit
+  # batchBlocksOnCatchup: 0
+  # The number of blocks to query at a batch all
+  # BatchBlocksOnBatchCall: 1000
 
 # Flow contract info configurations
 flow:
@@ -22,3 +39,9 @@ store:
     # connMaxLifeTime: 3m
     # maxOpenConns: 10
     # maxIdleConns: 10
+
+# Logs configurations
+log:
+  # Available levels are `trace`, `debug`, `info`, `error` and `fatal`
+  level: info
+  forceColor: false

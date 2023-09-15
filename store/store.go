@@ -19,7 +19,7 @@ type MysqlStore struct {
 	baseStore *mysql.Store
 	*blockStore
 	*submitStore
-	*addressStore
+	*AddressStore
 }
 
 func MustNewStore(db *gorm.DB) *MysqlStore {
@@ -27,20 +27,22 @@ func MustNewStore(db *gorm.DB) *MysqlStore {
 		baseStore:    mysql.NewStore(db),
 		blockStore:   newBlockStore(db),
 		submitStore:  newSubmitStore(db),
-		addressStore: newAddressStore(db),
+		AddressStore: newAddressStore(db),
 	}
 }
 
-func (ms *MysqlStore) Push(data *EthData) error {
+func (ms *MysqlStore) Push(block *Block, submits []*Submit) error {
 	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
 		// save blocks
-		if err := ms.blockStore.Add(dbTx, data); err != nil {
-			return errors.WithMessagef(err, "failed to save block")
+		if err := ms.blockStore.Add(dbTx, block); err != nil {
+			return errors.WithMessage(err, "failed to save block")
 		}
 
 		// save flow submits
-		if err := ms.submitStore.Add(dbTx, data); err != nil {
-			return errors.WithMessage(err, "failed to save flow submits")
+		if len(submits) > 0 {
+			if err := ms.submitStore.Add(dbTx, submits); err != nil {
+				return errors.WithMessage(err, "failed to save flow submits")
+			}
 		}
 
 		return nil
@@ -65,4 +67,8 @@ func (ms *MysqlStore) Pop(block uint64) error {
 		}
 		return nil
 	})
+}
+
+func (ms *MysqlStore) Close() error {
+	return ms.baseStore.Close()
 }

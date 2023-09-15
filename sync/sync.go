@@ -2,8 +2,10 @@ package sync
 
 import (
 	"context"
+	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/openweb3/web3go"
+	"github.com/openweb3/web3go/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"sync"
@@ -11,8 +13,10 @@ import (
 )
 
 type SyncConfig struct {
-	BlockWhenFlowCreated  uint64
-	SkipBlocksAheadLatest uint64 `default:"30"`
+	BlockWhenFlowCreated     uint64
+	DelayBlocksAgainstLatest uint64 `default:"30"`
+	BatchBlocksOnCatchup     uint64 `default:"0"`
+	BatchBlocksOnBatchCall   uint64 `default:"1000"`
 }
 
 type Syncer struct {
@@ -22,16 +26,28 @@ type Syncer struct {
 	currentBlock        uint64
 	syncIntervalNormal  time.Duration
 	syncIntervalCatchUp time.Duration
+	catchupSyncer       *CatchupSyncer
+	flowAddr            string
+	flowSubmitSig       string
 }
 
 // MustNewSyncer creates an instance of Syncer to sync blockchain data.
-func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, conf SyncConfig) *Syncer {
+func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, conf SyncConfig, catchupSyncer *CatchupSyncer) *Syncer {
+	var flow struct {
+		Address              string
+		SubmitEventSignature string
+	}
+	viperutil.MustUnmarshalKey("flow", &flow)
+
 	syncer := &Syncer{
 		conf:                &conf,
 		sdk:                 sdk,
 		db:                  db,
 		syncIntervalNormal:  time.Second,
 		syncIntervalCatchUp: time.Millisecond,
+		catchupSyncer:       catchupSyncer,
+		flowAddr:            flow.Address,
+		flowSubmitSig:       flow.SubmitEventSignature,
 	}
 
 	// Load last sync block information
@@ -67,14 +83,23 @@ func (s *Syncer) loadLastSyncBlock() (loaded bool, err error) {
 }
 
 func (s *Syncer) Sync(ctx context.Context, wg *sync.WaitGroup) {
-	logrus.Info("Syncer starting to sync eth data")
-
 	wg.Add(1)
 	defer wg.Done()
+
+	err := s.checkReorgData()
+	if err != nil {
+		logrus.WithError(err).Error("Check reorg data error")
+		return
+	}
+
+	s.catchupSyncer.Sync(ctx)
+	s.currentBlock = s.catchupSyncer.finalizedBlock + 1
+	logrus.WithField("block", s.catchupSyncer.finalizedBlock).Info("Catchup syncer done")
 
 	ticker := time.NewTicker(s.syncIntervalCatchUp)
 	defer ticker.Stop()
 
+	logrus.Info("Syncer starting to sync eth data")
 	for {
 		select {
 		case <-ctx.Done():
@@ -116,7 +141,7 @@ func (s *Syncer) syncOnce() (bool, error) {
 
 	// check latest block
 	curBlock := s.currentBlock
-	if curBlock > latestBlock.Uint64()-s.conf.SkipBlocksAheadLatest {
+	if curBlock > latestBlock.Uint64()-s.conf.DelayBlocksAgainstLatest {
 		return true, nil
 	}
 
@@ -135,19 +160,23 @@ func (s *Syncer) syncOnce() (bool, error) {
 		return false, err
 	}
 	if len(latestBlockHash) > 0 && data.Block.ParentHash.Hex()[2:] != latestBlockHash {
-		latestStoreBlock := s.latestStoreBlock()
-		if err := s.pivotSwitchRevert(latestStoreBlock); err != nil {
-			return false, err
-		}
-		return false, nil
+		return false, s.revertReorgData(s.latestStoreBlock())
 	}
 
 	// persist db
-	if err = s.db.Push(data); err != nil {
+	block := store.NewBlock(data.Block)
+	submits, err := store.NewSubmits(data, s.flowAddr, s.flowSubmitSig, s.db.AddressStore)
+	if err != nil {
+		return false, err
+	}
+	if err = s.db.Push(block, submits); err != nil {
 		return false, err
 	}
 
 	// increase currentBlock
+	if s.currentBlock%100 == 0 {
+		logrus.WithField("block", s.currentBlock).Info("Sync data")
+	}
 	s.currentBlock += 1
 
 	return false, nil
@@ -172,21 +201,55 @@ func (s *Syncer) latestStoreBlock() uint64 {
 	return 0
 }
 
-func (s *Syncer) pivotSwitchRevert(revertBlock uint64) error {
-	// check
-	logger := logrus.WithFields(logrus.Fields{
-		"revertBlock":      revertBlock,
-		"latestStoreBlock": s.latestStoreBlock(),
-	})
-	if revertBlock == 0 {
-		return errors.New("genesis block must not be reverted")
-	}
-	if revertBlock >= s.currentBlock {
-		return nil
+// Ideally, one by one block to check and prune reorg data is fine though, this could be improved with binary search probing.
+func (s *Syncer) checkReorgData() error {
+	for {
+		blockNum, ok, err := s.db.MaxBlock()
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+
+		exist, err := s.existReorgData(blockNum)
+		if err != nil {
+			return err
+		}
+
+		if !exist {
+			break
+		}
+
+		err = s.revertReorgData(blockNum)
+		if err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func (s *Syncer) existReorgData(blockNum uint64) (bool, error) {
+	hash, ok, err := s.db.BlockHash(blockNum)
+	if err != nil {
+		return false, errors.WithMessagef(err, "failed to get block at %v from db", blockNum)
+	}
+	if !ok {
+		return false, nil
+	}
+
+	block, err := s.sdk.Eth.BlockByNumber(types.BlockNumber(blockNum), false)
+	if err != nil {
+		return false, errors.WithMessagef(err, "failed to get block at %v from blockchain", blockNum)
+	}
+
+	return hash != block.Hash.String()[2:], nil
+}
+
+func (s *Syncer) revertReorgData(revertBlock uint64) error {
 	// pop from db
-	logger.Info("[Syncer]revert eth data at block %v", revertBlock)
+	logrus.WithField("block", revertBlock).Info("Revert eth data")
 	if err := s.db.Pop(revertBlock); err != nil {
 		return errors.WithMessage(err, "failed to pop eth data from db")
 	}
