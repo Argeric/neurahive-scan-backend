@@ -20,7 +20,9 @@ sync:
   # The number of blocks to query at a time during catchup, 0 means no limit
   # batchBlocksOnCatchup: 0
   # The number of blocks to query at a batch all
-  # BatchBlocksOnBatchCall: 1000
+  # batchBlocksOnBatchCall: 1000
+  # The number of txs to query at a batch all
+  # batchTxsOnBatchCall: 1000
 
 # Flow contract info configurations
 flow:

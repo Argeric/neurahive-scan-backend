@@ -4,10 +4,12 @@ import (
 	"context"
 	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
 	"github.com/Conflux-Chain/neurahive-scan/store"
+	set "github.com/deckarep/golang-set"
 	"github.com/openweb3/web3go"
 	"github.com/openweb3/web3go/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,6 +19,7 @@ type SyncConfig struct {
 	DelayBlocksAgainstLatest uint64 `default:"30"`
 	BatchBlocksOnCatchup     uint64 `default:"0"`
 	BatchBlocksOnBatchCall   uint64 `default:"1000"`
+	BatchTxsOnBatchCall      uint64 `default:"1000"`
 }
 
 type Syncer struct {
@@ -146,7 +149,7 @@ func (s *Syncer) syncOnce() (bool, error) {
 	}
 
 	// get eth data
-	data, err := store.QueryEthData(s.sdk, curBlock)
+	data, err := queryEthData(s.sdk, curBlock)
 	if err != nil {
 		return false, err
 	}
@@ -165,11 +168,11 @@ func (s *Syncer) syncOnce() (bool, error) {
 
 	// persist db
 	block := store.NewBlock(data.Block)
-	submits, err := store.NewSubmits(data, s.flowAddr, s.flowSubmitSig, s.db.AddressStore)
+	txs, submits, err := s.parseEthData(data, s.flowAddr, s.flowSubmitSig)
 	if err != nil {
 		return false, err
 	}
-	if err = s.db.Push(block, submits); err != nil {
+	if err = s.db.Push(block, txs, submits); err != nil {
 		return false, err
 	}
 
@@ -258,4 +261,58 @@ func (s *Syncer) revertReorgData(revertBlock uint64) error {
 	s.currentBlock = revertBlock
 
 	return nil
+}
+
+func (s *Syncer) parseEthData(data *store.EthData, flowAddr, flowSubmitSig string) ([]*store.Tx, []*store.Submit, error) {
+	blockTime := time.Unix(int64(data.Block.Timestamp), 0)
+	var submits []*store.Submit
+	var txs []*store.Tx
+	txnHashSet := set.NewSet()
+
+	for _, t := range data.Block.Transactions.Transactions() {
+		rcpt := data.Receipts[t.Hash]
+		if rcpt == nil || !isTxExecutedInBlock(&t, rcpt) {
+			continue
+		}
+
+		for _, log := range rcpt.Logs {
+			contract := log.Address.String()
+			topic0 := log.Topics[0].String()
+			if !strings.EqualFold(contract, flowAddr) || topic0 != flowSubmitSig {
+				continue
+			}
+
+			submit, err := s.convertSubmit(&blockTime, log)
+			if err != nil {
+				return nil, nil, err
+			}
+			submits = append(submits, submit)
+
+			if txnHashSet.Contains(t.Hash) {
+				continue
+			}
+			txnHashSet.Add(t.Hash)
+
+			tx, err := s.catchupSyncer.convertTx(&blockTime, &t)
+			if err != nil {
+				return nil, nil, err
+			}
+			txs = append(txs, tx)
+		}
+	}
+
+	return txs, submits, nil
+}
+
+func (s *Syncer) convertSubmit(blkTime *time.Time, log *types.Log) (*store.Submit, error) {
+	submit, err := store.NewSubmit(blkTime, log)
+	if err != nil {
+		return nil, err
+	}
+	senderId, err := s.db.AddressStore.Add(nil, submit.Sender, blkTime)
+	if err != nil {
+		return nil, err
+	}
+	submit.SenderId = senderId
+	return submit, nil
 }

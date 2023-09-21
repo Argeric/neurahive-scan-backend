@@ -84,6 +84,7 @@ require (
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/royeo/dingrobot v1.0.1-0.20191230075228-c90a788ca8fd // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect

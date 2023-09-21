@@ -24,9 +24,10 @@ type SdkConfig struct {
 }
 
 var migrationModels = []interface{}{
+	&store.Address{},
 	&store.Block{},
 	&store.Submit{},
-	&store.Address{},
+	&store.Tx{},
 }
 
 func MustInitSyncContext() SyncContext {

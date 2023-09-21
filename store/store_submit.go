@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/openweb3/web3go/types"
 	"gorm.io/gorm"
-	"strings"
 	"time"
 )
 
@@ -45,43 +44,6 @@ func NewSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
 	}
 
 	return submit, nil
-}
-
-func NewSubmits(data *EthData, flowAddr, flowSubmitSig string, as *AddressStore) ([]*Submit, error) {
-	block := data.Block
-	blockTime := time.Unix(int64(block.Timestamp), 0)
-
-	var submits []*Submit
-
-	for _, tx := range block.Transactions.Transactions() {
-		receipt := data.Receipts[tx.Hash]
-		if receipt == nil || !IsTxExecutedInBlock(&tx, receipt) {
-			continue
-		}
-
-		for _, log := range receipt.Logs {
-			contract := log.Address.String()
-			topic0 := log.Topics[0].String()
-			if !strings.EqualFold(contract, flowAddr) || topic0 != flowSubmitSig {
-				continue
-			}
-
-			submit, err := NewSubmit(&blockTime, log)
-			if err != nil {
-				return nil, err
-			}
-
-			senderId, err := as.Add(nil, submit.Sender, &blockTime)
-			if err != nil {
-				return nil, err
-			}
-
-			submit.SenderId = senderId
-			submits = append(submits, submit)
-		}
-	}
-
-	return submits, nil
 }
 
 func (Submit) TableName() string {

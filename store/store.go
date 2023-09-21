@@ -10,32 +10,37 @@ const (
 	batchSizeInsert = 100
 )
 
-var (
-	ErrNotFound     = errors.New("not found")
-	ErrChainReorged = errors.New("chain re-orged")
-)
-
 type MysqlStore struct {
 	baseStore *mysql.Store
+	*AddressStore
 	*blockStore
 	*submitStore
-	*AddressStore
+	*txStore
 }
 
 func MustNewStore(db *gorm.DB) *MysqlStore {
 	return &MysqlStore{
 		baseStore:    mysql.NewStore(db),
+		AddressStore: newAddressStore(db),
 		blockStore:   newBlockStore(db),
 		submitStore:  newSubmitStore(db),
-		AddressStore: newAddressStore(db),
+		txStore:      newTxStore(db),
 	}
 }
 
-func (ms *MysqlStore) Push(block *Block, submits []*Submit) error {
+func (ms *MysqlStore) Push(block *Block, txs []*Tx, submits []*Submit) error {
+
 	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
 		// save blocks
 		if err := ms.blockStore.Add(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to save block")
+		}
+
+		// save txs
+		if len(txs) > 0 {
+			if err := ms.txStore.Add(dbTx, txs); err != nil {
+				return errors.WithMessage(err, "failed to save txs")
+			}
 		}
 
 		// save flow submits
@@ -61,6 +66,9 @@ func (ms *MysqlStore) Pop(block uint64) error {
 	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
 		if err := ms.blockStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove block")
+		}
+		if err := ms.txStore.Pop(dbTx, block); err != nil {
+			return errors.WithMessage(err, "failed to remove txs")
 		}
 		if err := ms.submitStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove flow submits")

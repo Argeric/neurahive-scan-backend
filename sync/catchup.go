@@ -77,7 +77,7 @@ func (s *CatchupSyncer) syncRange(ctx context.Context, rangeStart, rangeEnd uint
 			for _, log := range logs {
 				blockNums = append(blockNums, types.BlockNumber(log.BlockNumber))
 			}
-			bn2TimeMap, err = store.MapBlockNum2Time(ctx, s.sdk, blockNums, s.conf.BatchBlocksOnBatchCall)
+			bn2TimeMap, err = mapBlockNum2Time(ctx, s.sdk, blockNums, s.conf.BatchBlocksOnBatchCall)
 		} else {
 			rangeEndBlock, err = s.sdk.Eth.BlockByNumber(types.BlockNumber(end), false)
 		}
@@ -86,11 +86,15 @@ func (s *CatchupSyncer) syncRange(ctx context.Context, rangeStart, rangeEnd uint
 		}
 
 		block := s.convertBlock(logs, bn2TimeMap, rangeEndBlock)
+		txs, err := s.convertTxs(ctx, logs, bn2TimeMap)
+		if err != nil {
+			return err
+		}
 		submits, err := s.convertSubmits(logs, bn2TimeMap)
 		if err != nil {
 			return err
 		}
-		err = s.db.Push(block, submits)
+		err = s.db.Push(block, txs, submits)
 		if err != nil {
 			return err
 		}
@@ -126,7 +130,7 @@ func (s *CatchupSyncer) queryFlowSubmitsBestEffort(w3c *web3go.Client, bnFrom, b
 	start, end := bnFrom, bnTo
 
 	for {
-		logs, err := store.QueryFlowSubmits(w3c, start, end, flowAddr, flowSubmitSig)
+		logs, err := queryFlowSubmits(w3c, start, end, flowAddr, flowSubmitSig)
 		if err == nil {
 			return logs, start, end, nil
 		}
@@ -193,6 +197,50 @@ func (s *CatchupSyncer) convertBlock(logs []types.Log, blockNum2TimeMap map[uint
 	}
 
 	return block
+}
+
+func (s *CatchupSyncer) convertTxs(ctx context.Context, logs []types.Log, blockNum2TimeMap map[uint64]uint64) ([]*store.Tx, error) {
+	var txns []*store.Tx
+	if len(logs) == 0 {
+		return txns, nil
+	}
+
+	txHashes := make([]common.Hash, 0)
+	for _, log := range logs {
+		txHashes = append(txHashes, log.TxHash)
+	}
+
+	txs, err := queryTxsByHashes(ctx, s.sdk, txHashes, s.conf.BatchTxsOnBatchCall)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, tx := range txs {
+		ts := blockNum2TimeMap[tx.BlockNumber.Uint64()]
+		blockTime := time.Unix(int64(ts), 0)
+		txn, err := s.convertTx(&blockTime, tx)
+		if err != nil {
+			return nil, err
+		}
+		txns = append(txns, txn)
+	}
+
+	return txns, nil
+}
+
+func (s *CatchupSyncer) convertTx(blkTime *time.Time, txn *types.TransactionDetail) (*store.Tx, error) {
+	tx := store.NewTx(blkTime, txn)
+	fromId, err := s.db.AddressStore.Add(nil, tx.From, blkTime)
+	if err != nil {
+		return nil, err
+	}
+	toId, err := s.db.AddressStore.Add(nil, tx.To, blkTime)
+	if err != nil {
+		return nil, err
+	}
+	tx.FromId = fromId
+	tx.ToId = toId
+	return tx, nil
 }
 
 func (s *CatchupSyncer) convertSubmits(logs []types.Log, blockNum2TimeMap map[uint64]uint64) ([]*store.Submit, error) {
