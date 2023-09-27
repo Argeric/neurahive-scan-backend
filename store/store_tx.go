@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	"github.com/openweb3/web3go/types"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -45,20 +46,29 @@ func (Tx) TableName() string {
 	return "txs"
 }
 
-type txStore struct {
+type TxStore struct {
+	*mysql.Store
 	as *AddressStore
 }
 
-func newTxStore(db *gorm.DB) *txStore {
-	return &txStore{
-		as: newAddressStore(db),
+func newTxStore(db *gorm.DB) *TxStore {
+	return &TxStore{
+		Store: mysql.NewStore(db),
+		as:    newAddressStore(db),
 	}
 }
 
-func (ts *txStore) Add(dbTx *gorm.DB, txs []*Tx) error {
+func (ts *TxStore) Add(dbTx *gorm.DB, txs []*Tx) error {
 	return dbTx.CreateInBatches(txs, batchSizeInsert).Error
 }
 
-func (ts *txStore) Pop(dbTx *gorm.DB, block uint64) error {
+func (ts *TxStore) Pop(dbTx *gorm.DB, block uint64) error {
 	return dbTx.Where("block_number >= ?", block).Delete(&Tx{}).Error
+}
+
+func (ts *TxStore) Count(startTime, endTime *time.Time) (uint64, error) {
+	var count int64
+	ts.DB.Model(&Tx{}).Where("created_at >= ? and created_at < ? and status = ?", startTime, endTime, 1).
+		Count(&count)
+	return uint64(count), nil
 }

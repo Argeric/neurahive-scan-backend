@@ -27,24 +27,24 @@ func (Block) TableName() string {
 	return "blocks"
 }
 
-type blockStore struct {
-	baseStore *mysql.Store
+type BlockStore struct {
+	*mysql.Store
 }
 
-func newBlockStore(db *gorm.DB) *blockStore {
-	return &blockStore{
-		baseStore: mysql.NewStore(db),
+func newBlockStore(db *gorm.DB) *BlockStore {
+	return &BlockStore{
+		Store: mysql.NewStore(db),
 	}
 }
 
-func (bs *blockStore) Add(dbTx *gorm.DB, block *Block) error {
+func (bs *BlockStore) Add(dbTx *gorm.DB, block *Block) error {
 	return dbTx.Create(block).Error
 }
 
-func (bs *blockStore) MaxBlock() (uint64, bool, error) {
+func (bs *BlockStore) MaxBlock() (uint64, bool, error) {
 	var maxBlock sql.NullInt64
 
-	db := bs.baseStore.DB.Model(&Block{}).Select("MAX(block_number)")
+	db := bs.Store.DB.Model(&Block{}).Select("MAX(block_number)")
 	if err := db.Find(&maxBlock).Error; err != nil {
 		return 0, false, err
 	}
@@ -56,10 +56,10 @@ func (bs *blockStore) MaxBlock() (uint64, bool, error) {
 	return uint64(maxBlock.Int64), true, nil
 }
 
-func (bs *blockStore) BlockHash(blockNumber uint64) (string, bool, error) {
+func (bs *BlockStore) BlockHash(blockNumber uint64) (string, bool, error) {
 	var blk Block
 
-	existed, err := bs.baseStore.Exists(&blk, "block_number = ?", blockNumber)
+	existed, err := bs.Store.Exists(&blk, "block_number = ?", blockNumber)
 	if err != nil {
 		return "", false, err
 	}
@@ -67,6 +67,17 @@ func (bs *blockStore) BlockHash(blockNumber uint64) (string, bool, error) {
 	return blk.Hash, existed, nil
 }
 
-func (bs *blockStore) Pop(dbTx *gorm.DB, block uint64) error {
+func (bs *BlockStore) FirstBlockAfterTime(t *time.Time) (uint64, bool, error) {
+	var blk Block
+
+	existed, err := bs.Store.Exists(&blk, "created_at >= ?", t)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return blk.BlockNumber, existed, nil
+}
+
+func (bs *BlockStore) Pop(dbTx *gorm.DB, block uint64) error {
 	return dbTx.Where("block_number >= ?", block).Delete(&Block{}).Error
 }

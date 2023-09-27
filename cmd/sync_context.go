@@ -1,11 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	"github.com/Conflux-Chain/go-conflux-util/viper"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/openweb3/web3go"
 	"github.com/sirupsen/logrus"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -28,9 +33,10 @@ var migrationModels = []interface{}{
 	&store.Block{},
 	&store.Submit{},
 	&store.Tx{},
+	&store.TxStat{},
 }
 
-func MustInitSyncContext() SyncContext {
+func MustInitDataContext() SyncContext {
 	cfg := mysql.MustNewConfigFromViper()
 	db := cfg.MustOpenOrCreate()
 	if err := db.AutoMigrate(migrationModels...); err != nil {
@@ -59,4 +65,22 @@ func (ctx *SyncContext) Close() {
 	if ctx.Eth != nil {
 		ctx.Eth.Close()
 	}
+}
+
+func GracefulShutdown(wg *sync.WaitGroup, cancel context.CancelFunc) {
+	// Handle sigterm and await termChan signal
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(termChan, syscall.SIGTERM, syscall.SIGINT)
+
+	// Wait for SIGTERM to be captured
+	<-termChan
+	logrus.Info("SIGTERM/SIGINT received, shutdown process initiated")
+
+	// Cancel to notify active goroutines to clean up.
+	cancel()
+
+	logrus.Info("Waiting for shutdown...")
+	wg.Wait()
+
+	logrus.Info("Shutdown gracefully")
 }

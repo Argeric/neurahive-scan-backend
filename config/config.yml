@@ -42,6 +42,13 @@ store:
     # maxOpenConns: 10
     # maxIdleConns: 10
 
+# Statistic configurations
+stat:
+  # The block number from which to stat
+  blockOnStatBegin: 134253185
+  # The minimum interval for tx stat
+  # minStatIntervalDailyTx: 10m
+
 # Logs configurations
 log:
   # Available levels are `trace`, `debug`, `info`, `error` and `fatal`

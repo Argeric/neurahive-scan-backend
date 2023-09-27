@@ -11,34 +11,36 @@ const (
 )
 
 type MysqlStore struct {
-	baseStore *mysql.Store
+	*mysql.Store
 	*AddressStore
-	*blockStore
+	*BlockStore
 	*submitStore
-	*txStore
+	*TxStore
+	*TxStatStore
 }
 
 func MustNewStore(db *gorm.DB) *MysqlStore {
 	return &MysqlStore{
-		baseStore:    mysql.NewStore(db),
+		Store:        mysql.NewStore(db),
 		AddressStore: newAddressStore(db),
-		blockStore:   newBlockStore(db),
+		BlockStore:   newBlockStore(db),
 		submitStore:  newSubmitStore(db),
-		txStore:      newTxStore(db),
+		TxStore:      newTxStore(db),
+		TxStatStore:  newTxStatStore(db),
 	}
 }
 
 func (ms *MysqlStore) Push(block *Block, txs []*Tx, submits []*Submit) error {
 
-	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
+	return ms.Store.DB.Transaction(func(dbTx *gorm.DB) error {
 		// save blocks
-		if err := ms.blockStore.Add(dbTx, block); err != nil {
+		if err := ms.BlockStore.Add(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to save block")
 		}
 
 		// save txs
 		if len(txs) > 0 {
-			if err := ms.txStore.Add(dbTx, txs); err != nil {
+			if err := ms.TxStore.Add(dbTx, txs); err != nil {
 				return errors.WithMessage(err, "failed to save txs")
 			}
 		}
@@ -63,11 +65,11 @@ func (ms *MysqlStore) Pop(block uint64) error {
 		return nil
 	}
 
-	return ms.baseStore.DB.Transaction(func(dbTx *gorm.DB) error {
-		if err := ms.blockStore.Pop(dbTx, block); err != nil {
+	return ms.Store.DB.Transaction(func(dbTx *gorm.DB) error {
+		if err := ms.BlockStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove block")
 		}
-		if err := ms.txStore.Pop(dbTx, block); err != nil {
+		if err := ms.TxStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove txs")
 		}
 		if err := ms.submitStore.Pop(dbTx, block); err != nil {
@@ -78,5 +80,5 @@ func (ms *MysqlStore) Pop(block uint64) error {
 }
 
 func (ms *MysqlStore) Close() error {
-	return ms.baseStore.Close()
+	return ms.Store.Close()
 }

@@ -51,12 +51,12 @@ func (Submit) TableName() string {
 }
 
 type submitStore struct {
-	baseStore *mysql.Store
+	*mysql.Store
 }
 
 func newSubmitStore(db *gorm.DB) *submitStore {
 	return &submitStore{
-		baseStore: mysql.NewStore(db),
+		Store: mysql.NewStore(db),
 	}
 }
 

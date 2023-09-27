@@ -19,12 +19,12 @@ func (Address) TableName() string {
 }
 
 type AddressStore struct {
-	baseStore *mysql.Store
+	*mysql.Store
 }
 
 func newAddressStore(db *gorm.DB) *AddressStore {
 	return &AddressStore{
-		baseStore: mysql.NewStore(db),
+		Store: mysql.NewStore(db),
 	}
 }
 
@@ -32,7 +32,7 @@ func (as *AddressStore) Add(dbTx *gorm.DB, data string, blockTime *time.Time) (u
 	hex := strings.ToLower(strings.TrimPrefix(data, "0x"))
 
 	var addr Address
-	existed, err := as.baseStore.Exists(&addr, "hex = ?", hex) //TODO using LRU cache for improving the query performance
+	existed, err := as.Store.Exists(&addr, "hex = ?", hex) //TODO using LRU cache for improving the query performance
 	if err != nil {
 		return 0, err
 	}
@@ -45,7 +45,7 @@ func (as *AddressStore) Add(dbTx *gorm.DB, data string, blockTime *time.Time) (u
 		BlockTime: blockTime,
 	}
 	if dbTx == nil {
-		dbTx = as.baseStore.DB
+		dbTx = as.Store.DB
 	}
 	if err := dbTx.Create(&addr).Error; err != nil {
 		return 0, err
