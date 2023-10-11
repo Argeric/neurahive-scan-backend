@@ -34,8 +34,9 @@ var (
 )
 
 type StatConfig struct {
-	BlockOnStatBegin       uint64
-	MinStatIntervalDailyTx string `default:"10m"`
+	BlockOnStatBegin           uint64
+	MinStatIntervalDailyTx     string `default:"10m"`
+	MinStatIntervalDailySubmit string `default:"10m"`
 }
 
 type TimeRange struct {
@@ -45,9 +46,9 @@ type TimeRange struct {
 
 type BaseStat struct {
 	Config    *StatConfig
-	db        *store.MysqlStore
-	sdk       *web3go.Client
-	startTime *time.Time
+	Db        *store.MysqlStore
+	Sdk       *web3go.Client
+	StartTime *time.Time
 }
 
 func (bs *BaseStat) defaultRangeStart() (*time.Time, error) {
@@ -55,7 +56,7 @@ func (bs *BaseStat) defaultRangeStart() (*time.Time, error) {
 		return nil, errors.New("missing block from which the stat begin")
 	}
 
-	block, err := bs.sdk.Eth.BlockByNumber(types.BlockNumber(bs.Config.BlockOnStatBegin), false)
+	block, err := bs.Sdk.Eth.BlockByNumber(types.BlockNumber(bs.Config.BlockOnStatBegin), false)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +117,7 @@ func (bs *BaseStat) calStatRangeStart(t *time.Time, statType string) (*time.Time
 }
 
 func (bs *BaseStat) firstBlockAfterRangeEnd(rangeEnd *time.Time) (uint64, bool, error) {
-	return bs.db.FirstBlockAfterTime(rangeEnd)
+	return bs.Db.FirstBlockAfterTime(rangeEnd)
 }
 
 type Stat interface {

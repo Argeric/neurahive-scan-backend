@@ -48,6 +48,15 @@ stat:
   blockOnStatBegin: 134253185
   # The minimum interval for tx stat
   # minStatIntervalDailyTx: 10m
+  # The minimum interval for submit stat
+  # minStatIntervalDailySubmit: 10m
+
+# Api configurations
+api:
+  endpoint: :12345
+  # recoveryDisabled: false
+  # corsOrigins: []
+  # logger: false
 
 # Logs configurations
 log:

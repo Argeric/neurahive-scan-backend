@@ -53,3 +53,19 @@ func (as *AddressStore) Add(dbTx *gorm.DB, data string, blockTime *time.Time) (u
 
 	return addr.Id, nil
 }
+
+// MapAddrIdToHex TODO LRU cache
+func (as *AddressStore) MapAddrIdToHex(addrIds []uint64) (map[uint64]string, error) {
+	addresses := new([]Address)
+	err := as.DB.Raw("select * from addresses where id in ?", addrIds).Scan(addresses).Error
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[uint64]string)
+	for _, addr := range *addresses {
+		m[addr.Id] = addr.Hex
+	}
+
+	return m, nil
+}

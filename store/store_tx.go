@@ -72,3 +72,19 @@ func (ts *TxStore) Count(startTime, endTime *time.Time) (uint64, error) {
 		Count(&count)
 	return uint64(count), nil
 }
+
+// MapTxHashToTx TODO LRU cache
+func (ts *TxStore) MapTxHashToTx(txHashes []string) (map[string]Tx, error) {
+	txs := new([]Tx)
+	err := ts.DB.Raw("select * from txs where hash in ?", txHashes).Scan(txs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[string]Tx)
+	for _, tx := range *txs {
+		m[tx.Hash] = tx
+	}
+
+	return m, nil
+}

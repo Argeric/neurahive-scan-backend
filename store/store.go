@@ -14,19 +14,21 @@ type MysqlStore struct {
 	*mysql.Store
 	*AddressStore
 	*BlockStore
-	*submitStore
+	*SubmitStore
 	*TxStore
 	*TxStatStore
+	*SubmitStatStore
 }
 
 func MustNewStore(db *gorm.DB) *MysqlStore {
 	return &MysqlStore{
-		Store:        mysql.NewStore(db),
-		AddressStore: newAddressStore(db),
-		BlockStore:   newBlockStore(db),
-		submitStore:  newSubmitStore(db),
-		TxStore:      newTxStore(db),
-		TxStatStore:  newTxStatStore(db),
+		Store:           mysql.NewStore(db),
+		AddressStore:    newAddressStore(db),
+		BlockStore:      newBlockStore(db),
+		SubmitStore:     newSubmitStore(db),
+		TxStore:         newTxStore(db),
+		TxStatStore:     newTxStatStore(db),
+		SubmitStatStore: newSubmitStatStore(db),
 	}
 }
 
@@ -47,7 +49,7 @@ func (ms *MysqlStore) Push(block *Block, txs []*Tx, submits []*Submit) error {
 
 		// save flow submits
 		if len(submits) > 0 {
-			if err := ms.submitStore.Add(dbTx, submits); err != nil {
+			if err := ms.SubmitStore.Add(dbTx, submits); err != nil {
 				return errors.WithMessage(err, "failed to save flow submits")
 			}
 		}
@@ -72,7 +74,7 @@ func (ms *MysqlStore) Pop(block uint64) error {
 		if err := ms.TxStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove txs")
 		}
-		if err := ms.submitStore.Pop(dbTx, block); err != nil {
+		if err := ms.SubmitStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove flow submits")
 		}
 		return nil

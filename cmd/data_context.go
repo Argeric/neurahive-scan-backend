@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// SyncContext context to hold sdk clients for blockchain interoperation.
-type SyncContext struct {
+// DataContext context to hold sdk clients for blockchain interoperation.
+type DataContext struct {
 	Eth *web3go.Client
 	DB  *store.MysqlStore
 }
@@ -34,9 +34,10 @@ var migrationModels = []interface{}{
 	&store.Submit{},
 	&store.Tx{},
 	&store.TxStat{},
+	&store.SubmitStat{},
 }
 
-func MustInitDataContext() SyncContext {
+func MustInitDataContext() DataContext {
 	cfg := mysql.MustNewConfigFromViper()
 	db := cfg.MustOpenOrCreate()
 	if err := db.AutoMigrate(migrationModels...); err != nil {
@@ -51,13 +52,13 @@ func MustInitDataContext() SyncContext {
 		WithMaxConnectionPerHost(sdkCfg.MaxConnsPerHost)
 	eth := web3go.MustNewClientWithOption(sdkCfg.Url, opt)
 
-	return SyncContext{
+	return DataContext{
 		DB:  store.MustNewStore(db),
 		Eth: eth,
 	}
 }
 
-func (ctx *SyncContext) Close() {
+func (ctx *DataContext) Close() {
 	if ctx.DB != nil {
 		ctx.DB.Close()
 	}

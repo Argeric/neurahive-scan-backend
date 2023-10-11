@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/Conflux-Chain/go-conflux-util/viper"
 	"github.com/Conflux-Chain/neurahive-scan/stat"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -22,15 +23,21 @@ func init() {
 
 func startStatService(*cobra.Command, []string) {
 	logrus.Info("Start to stat transactions and data size of storage")
+	cfg := stat.StatConfig{}
+	viper.MustUnmarshalKey("stat", &cfg)
+
 	dataCtx := MustInitDataContext()
 	defer dataCtx.Close()
+
+	startTime := stat.MustDefaultRangeStart(dataCtx.Eth)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 
-	startTime := stat.MustDefaultRangeStart(dataCtx.Eth)
-	st := stat.MustNewTxStat(dataCtx.Eth, dataCtx.DB, startTime)
-	go st.DoStat(ctx, &wg)
+	stTx := stat.MustNewStatTx(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
+	go stTx.DoStat(ctx, &wg)
+	stSubmit := stat.MustNewStatSubmit(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
+	go stSubmit.DoStat(ctx, &wg)
 
 	GracefulShutdown(&wg, cancel)
 }

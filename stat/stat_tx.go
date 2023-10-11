@@ -1,7 +1,6 @@
 package stat
 
 import (
-	"github.com/Conflux-Chain/go-conflux-util/viper"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/openweb3/web3go"
 	"github.com/pkg/errors"
@@ -14,37 +13,34 @@ type StatTx struct {
 	statType string
 }
 
-func MustNewTxStat(sdk *web3go.Client, db *store.MysqlStore, startTime *time.Time) *AbsStat {
-	config := StatConfig{}
-	viper.MustUnmarshalKey("stat", &config)
-
+func MustNewStatTx(cfg *StatConfig, db *store.MysqlStore, sdk *web3go.Client, startTime *time.Time) *AbsStat {
 	baseStat := &BaseStat{
-		Config:    &config,
-		db:        db,
-		sdk:       sdk,
-		startTime: startTime,
+		Config:    cfg,
+		Db:        db,
+		Sdk:       sdk,
+		StartTime: startTime,
 	}
 
 	statTx := &StatTx{
 		BaseStat: baseStat,
-		statType: config.MinStatIntervalDailyTx,
+		statType: baseStat.Config.MinStatIntervalDailyTx,
 	}
 
 	return &AbsStat{
 		Stat: statTx,
-		sdk:  sdk,
+		sdk:  baseStat.Sdk,
 	}
 }
 
 func (ts *StatTx) nextTimeRange() (*TimeRange, error) {
-	lastStat, err := ts.db.TxStatStore.LastByType(ts.statType)
+	lastStat, err := ts.Db.TxStatStore.LastByType(ts.statType)
 	if err != nil {
 		return nil, err
 	}
 
 	var nextRangeStart *time.Time
 	if lastStat == nil {
-		nextRangeStart = ts.startTime
+		nextRangeStart = ts.StartTime
 	} else {
 		t := lastStat.StatTime.Add(Intervals[ts.statType])
 		nextRangeStart = &t
@@ -73,14 +69,14 @@ func (ts *StatTx) calculateStat(tr *TimeRange) error {
 	}
 
 	stats := []*store.TxStat{stat, hStat, dStat}
-	return ts.db.DB.Transaction(func(dbTx *gorm.DB) error {
-		if err := ts.db.TxStatStore.Del(dbTx, hStat); err != nil {
+	return ts.Db.DB.Transaction(func(dbTx *gorm.DB) error {
+		if err := ts.Db.TxStatStore.Del(dbTx, hStat); err != nil {
 			return errors.WithMessage(err, "failed to del hour stat")
 		}
-		if err := ts.db.TxStatStore.Del(dbTx, dStat); err != nil {
+		if err := ts.Db.TxStatStore.Del(dbTx, dStat); err != nil {
 			return errors.WithMessage(err, "failed to del day stat")
 		}
-		if err := ts.db.TxStatStore.Add(dbTx, stats); err != nil {
+		if err := ts.Db.TxStatStore.Add(dbTx, stats); err != nil {
 			return errors.WithMessage(err, "failed to save stats")
 		}
 		return nil
@@ -88,11 +84,11 @@ func (ts *StatTx) calculateStat(tr *TimeRange) error {
 }
 
 func (ts *StatTx) statBasicRange(tr *TimeRange) (*store.TxStat, error) {
-	count, err := ts.db.TxStore.Count(tr.start, tr.end)
+	count, err := ts.Db.TxStore.Count(tr.start, tr.end)
 	if err != nil {
 		return nil, err
 	}
-	total, err := ts.db.TxStatStore.Sum(nil, tr.start, ts.statType)
+	total, err := ts.Db.TxStatStore.Sum(nil, tr.start, ts.statType)
 	if err != nil {
 		return nil, err
 	}
@@ -111,11 +107,11 @@ func (ts *StatTx) statRange(rangEnd *time.Time, srcStatType, descStatType string
 		return nil, err
 	}
 
-	count, err := ts.db.TxStatStore.Sum(rangeStart, rangEnd, srcStatType)
+	count, err := ts.Db.TxStatStore.Sum(rangeStart, rangEnd, srcStatType)
 	if err != nil {
 		return nil, err
 	}
-	total, err := ts.db.TxStatStore.Sum(nil, rangeStart, descStatType)
+	total, err := ts.Db.TxStatStore.Sum(nil, rangeStart, descStatType)
 	if err != nil {
 		return nil, err
 	}

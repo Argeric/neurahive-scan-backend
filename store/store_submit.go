@@ -50,20 +50,34 @@ func (Submit) TableName() string {
 	return "submits"
 }
 
-type submitStore struct {
+type SubmitStore struct {
 	*mysql.Store
 }
 
-func newSubmitStore(db *gorm.DB) *submitStore {
-	return &submitStore{
+func newSubmitStore(db *gorm.DB) *SubmitStore {
+	return &SubmitStore{
 		Store: mysql.NewStore(db),
 	}
 }
 
-func (ss *submitStore) Add(dbTx *gorm.DB, submits []*Submit) error {
+func (ss *SubmitStore) Add(dbTx *gorm.DB, submits []*Submit) error {
 	return dbTx.CreateInBatches(submits, batchSizeInsert).Error
 }
 
-func (ss *submitStore) Pop(dbTx *gorm.DB, block uint64) error {
+func (ss *SubmitStore) Pop(dbTx *gorm.DB, block uint64) error {
 	return dbTx.Where("block_number >= ?", block).Delete(&Submit{}).Error
+}
+
+func (ss *SubmitStore) Count(startTime, endTime *time.Time) (uint64, uint64, error) {
+	var result struct {
+		FileCount int64
+		DataSize  int64
+	}
+	err := ss.DB.Model(&Submit{}).Select("count(id) as file_count, IFNULL(sum(submission_length), 0) as data_size").
+		Where("created_at >= ? and created_at < ?", startTime, endTime).Find(&result).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return uint64(result.FileCount), uint64(result.DataSize), nil
 }
