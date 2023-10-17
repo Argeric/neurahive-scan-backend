@@ -35,6 +35,7 @@ var migrationModels = []interface{}{
 	&store.Tx{},
 	&store.TxStat{},
 	&store.SubmitStat{},
+	&store.Erc20Transfer{},
 }
 
 func MustInitDataContext() DataContext {

@@ -71,7 +71,8 @@ func queryEthData(w3c *web3go.Client, blockNumber uint64) (*store.EthData, error
 	return &store.EthData{blockNumber, block, txReceipts}, nil
 }
 
-func queryFlowSubmits(w3c *web3go.Client, blockFrom, blockTo uint64, flowAddr common.Address, flowSubmitSig common.Hash) ([]types.Log, error) {
+func queryFlowSubmits(w3c *web3go.Client, blockFrom, blockTo uint64, flowAddr common.Address,
+	flowSubmitSig common.Hash) ([]types.Log, error) {
 	bnFrom := types.NewBlockNumber(int64(blockFrom))
 	bnTo := types.NewBlockNumber(int64(blockTo))
 	logFilter := types.FilterQuery{
@@ -83,7 +84,22 @@ func queryFlowSubmits(w3c *web3go.Client, blockFrom, blockTo uint64, flowAddr co
 	return w3c.Eth.Logs(logFilter)
 }
 
-func mapBlockNum2Time(ctx context.Context, w3c *web3go.Client, blkNums []types.BlockNumber, batchSize uint64) (map[uint64]uint64, error) {
+func queryErc20Transfers(w3c *web3go.Client, blockFrom, blockTo uint64, erc20Addr common.Address, erc20TransferSig,
+	flowAddrTopic common.Hash) ([]types.Log, error) {
+	bnFrom := types.NewBlockNumber(int64(blockFrom))
+	bnTo := types.NewBlockNumber(int64(blockTo))
+
+	logFilter := types.FilterQuery{
+		FromBlock: &bnFrom,
+		ToBlock:   &bnTo,
+		Addresses: []common.Address{erc20Addr},
+		Topics:    [][]common.Hash{{erc20TransferSig}, {}, {flowAddrTopic}},
+	}
+	return w3c.Eth.Logs(logFilter)
+}
+
+func mapBlockNum2Time(ctx context.Context, w3c *web3go.Client, blkNums []types.BlockNumber,
+	batchSize uint64) (map[uint64]uint64, error) {
 	if len(blkNums) == 0 {
 		return nil, errors.New("no block numbers")
 	}
@@ -127,7 +143,13 @@ func mapBlockNum2Time(ctx context.Context, w3c *web3go.Client, blkNums []types.B
 	return blockNum2Time, nil
 }
 
-func queryTxsByHashes(ctx context.Context, w3c *web3go.Client, hashes []common.Hash, batchSize uint64) ([]*types.TransactionDetail, error) {
+type transaction struct {
+	tx   *types.TransactionDetail
+	rcpt *types.Receipt
+}
+
+func queryTxsByHashes(ctx context.Context, w3c *web3go.Client, hashes []common.Hash, batchSize uint64) (
+	[]*transaction, error) {
 	if len(hashes) == 0 {
 		return nil, errors.New("no tx hashes")
 	}
@@ -136,12 +158,11 @@ func queryTxsByHashes(ctx context.Context, w3c *web3go.Client, hashes []common.H
 	for _, hash := range hashes {
 		hashSet.Add(hash)
 	}
-
-	txs := make([]*types.TransactionDetail, 0)
 	hashSlice := hashSet.ToSlice()
-
 	size := len(hashSlice)
+
 	hashTxMap := make(map[common.Hash]*types.TransactionDetail)
+	hashRcptMap := make(map[common.Hash]*types.Receipt)
 	for i := 0; i < size; i += int(batchSize) {
 		end := i + int(batchSize)
 		if end > size {
@@ -156,7 +177,13 @@ func queryTxsByHashes(ctx context.Context, w3c *web3go.Client, hashes []common.H
 				Args:   []interface{}{hash},
 				Result: new(types.TransactionDetail),
 			}
+			elemR := rpc.BatchElem{
+				Method: "eth_getTransactionReceipt",
+				Args:   []interface{}{hash},
+				Result: new(types.Receipt),
+			}
 			batch = append(batch, elem)
+			batch = append(batch, elemR)
 		}
 
 		err := w3c.Eth.BatchCallContext(ctx, batch)
@@ -164,20 +191,28 @@ func queryTxsByHashes(ctx context.Context, w3c *web3go.Client, hashes []common.H
 			return nil, err
 		}
 
-		for _, elem := range batch {
-			txn := elem.Result.(*types.TransactionDetail)
-			hashTxMap[txn.Hash] = txn
+		for i, elem := range batch {
+			if i%2 == 0 {
+				txn := elem.Result.(*types.TransactionDetail)
+				hashTxMap[txn.Hash] = txn
+			} else {
+				rcpt := elem.Result.(*types.Receipt)
+				hashRcptMap[rcpt.TransactionHash] = rcpt
+			}
 		}
 	}
 
+	txns := make([]*transaction, 0)
 	for _, hash := range hashes { // for returning txs in block number's asc order
-		txn := hashTxMap[hash]
-		if txn == nil {
+		tx := hashTxMap[hash]
+		rcpt := hashRcptMap[hash]
+		if tx == nil || rcpt == nil {
 			continue
 		}
 		delete(hashTxMap, hash)
-		txs = append(txs, txn)
+		delete(hashRcptMap, hash)
+		txns = append(txns, &transaction{tx: tx, rcpt: rcpt})
 	}
 
-	return txs, nil
+	return txns, nil
 }

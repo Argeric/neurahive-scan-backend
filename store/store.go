@@ -18,21 +18,23 @@ type MysqlStore struct {
 	*TxStore
 	*TxStatStore
 	*SubmitStatStore
+	*Erc20TransferStore
 }
 
 func MustNewStore(db *gorm.DB) *MysqlStore {
 	return &MysqlStore{
-		Store:           mysql.NewStore(db),
-		AddressStore:    newAddressStore(db),
-		BlockStore:      newBlockStore(db),
-		SubmitStore:     newSubmitStore(db),
-		TxStore:         newTxStore(db),
-		TxStatStore:     newTxStatStore(db),
-		SubmitStatStore: newSubmitStatStore(db),
+		Store:              mysql.NewStore(db),
+		AddressStore:       newAddressStore(db),
+		BlockStore:         newBlockStore(db),
+		SubmitStore:        newSubmitStore(db),
+		TxStore:            newTxStore(db),
+		TxStatStore:        newTxStatStore(db),
+		SubmitStatStore:    newSubmitStatStore(db),
+		Erc20TransferStore: newErc20TransferStore(db),
 	}
 }
 
-func (ms *MysqlStore) Push(block *Block, txs []*Tx, submits []*Submit) error {
+func (ms *MysqlStore) Push(block *Block, txs []*Tx, transfers []*Erc20Transfer, submits []*Submit) error {
 
 	return ms.Store.DB.Transaction(func(dbTx *gorm.DB) error {
 		// save blocks
@@ -44,6 +46,13 @@ func (ms *MysqlStore) Push(block *Block, txs []*Tx, submits []*Submit) error {
 		if len(txs) > 0 {
 			if err := ms.TxStore.Add(dbTx, txs); err != nil {
 				return errors.WithMessage(err, "failed to save txs")
+			}
+		}
+
+		// save transfers
+		if len(transfers) > 0 {
+			if err := ms.Erc20TransferStore.Add(dbTx, transfers); err != nil {
+				return errors.WithMessage(err, "failed to save transfers")
 			}
 		}
 
@@ -76,6 +85,9 @@ func (ms *MysqlStore) Pop(block uint64) error {
 		}
 		if err := ms.SubmitStore.Pop(dbTx, block); err != nil {
 			return errors.WithMessage(err, "failed to remove flow submits")
+		}
+		if err := ms.Erc20TransferStore.Pop(dbTx, block); err != nil {
+			return errors.WithMessage(err, "failed to remove flow transfers")
 		}
 		return nil
 	})

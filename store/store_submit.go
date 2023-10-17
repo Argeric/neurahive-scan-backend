@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	"github.com/Conflux-Chain/neurahive-client/contract"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/openweb3/web3go/types"
 	"gorm.io/gorm"
 	"time"
@@ -22,11 +21,11 @@ type Submit struct {
 	StartPos         uint64     `gorm:"not null"`
 	Length           uint64     `gorm:"not null"`
 	SubmissionLength uint64     `gorm:"not null"`
+	Nodes            uint64     `gorm:"not null"`
 }
 
-func NewSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
-	contract, _ := contract.NewFlowFilterer(common.HexToAddress(""), nil)
-	flowSubmit, err := contract.ParseSubmit(*log.ToEthLog())
+func NewSubmit(blockTime *time.Time, log *types.Log, filter *contract.FlowFilterer) (*Submit, error) {
+	flowSubmit, err := filter.ParseSubmit(*log.ToEthLog())
 	if err != nil {
 		return nil, err
 	}
@@ -41,6 +40,7 @@ func NewSubmit(blockTime *time.Time, log *types.Log) (*Submit, error) {
 		StartPos:         flowSubmit.StartPos.Uint64(),
 		Length:           flowSubmit.Length.Uint64(),
 		SubmissionLength: flowSubmit.Submission.Length.Uint64(),
+		Nodes:            uint64(len(flowSubmit.Submission.Nodes)),
 	}
 
 	return submit, nil

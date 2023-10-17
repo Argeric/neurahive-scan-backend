@@ -22,7 +22,7 @@ func startApiService(*cobra.Command, []string) {
 	dataCtx := MustInitDataContext()
 	defer dataCtx.Close()
 
-	nhApi.Init(dataCtx.Eth, dataCtx.DB)
+	nhApi.MustInit(dataCtx.Eth, dataCtx.DB)
 
 	api.MustServeFromViper(nhApi.RegisterRouter)
 }

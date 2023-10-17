@@ -5,6 +5,7 @@ import (
 	"github.com/openweb3/web3go/types"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"math/big"
 	"time"
 )
 
@@ -20,13 +21,25 @@ type Tx struct {
 	MethodId    string           `gorm:"type:varchar(8);default:null"` // MethodId is function selector
 	DripValue   *decimal.Decimal `gorm:"type:varchar(78);not null"`
 	GasPrice    uint64           `gorm:"not null;default:0"`
-	Gas         uint64           `gorm:"not null;default:0"`
+	GasLimit    uint64           `gorm:"not null;default:0"`
+	GasUsed     uint64           `gorm:"not null;default:0"`
+	GasFee      uint64           `gorm:"not null;default:0"`
 	Status      uint64           `gorm:"not null;default:0"`
 	CreatedAt   *time.Time       `gorm:"not null;index:idx_createdAt,sort:desc"`
 }
 
-func NewTx(blockTime *time.Time, tx *types.TransactionDetail) *Tx {
+func NewTx(blockTime *time.Time, tx *types.TransactionDetail, rcpt *types.Receipt) *Tx {
 	val := decimal.NewFromBigInt(tx.Value, 0)
+
+	var gasUsed, gasFee uint64
+	if rcpt != nil {
+		gasUsed = rcpt.GasUsed
+		gasFee = new(big.Int).Mul(
+			new(big.Int).SetUint64(rcpt.EffectiveGasPrice),
+			new(big.Int).SetUint64(rcpt.GasUsed),
+		).Uint64()
+	}
+
 	return &Tx{
 		BlockNumber: tx.BlockNumber.Uint64(),
 		Hash:        tx.Hash.String()[2:],
@@ -36,7 +49,9 @@ func NewTx(blockTime *time.Time, tx *types.TransactionDetail) *Tx {
 		MethodId:    tx.Input.String()[2:10],
 		DripValue:   &val,
 		GasPrice:    tx.GasPrice.Uint64(),
-		Gas:         tx.Gas,
+		GasLimit:    tx.Gas,
+		GasUsed:     gasUsed,
+		GasFee:      gasFee,
 		Status:      *tx.Status,
 		CreatedAt:   blockTime,
 	}

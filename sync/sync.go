@@ -3,8 +3,8 @@ package sync
 import (
 	"context"
 	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
+	nhContract "github.com/Conflux-Chain/neurahive-scan/contract"
 	"github.com/Conflux-Chain/neurahive-scan/store"
-	set "github.com/deckarep/golang-set"
 	"github.com/openweb3/web3go"
 	"github.com/openweb3/web3go/types"
 	"github.com/pkg/errors"
@@ -32,6 +32,14 @@ type Syncer struct {
 	catchupSyncer       *CatchupSyncer
 	flowAddr            string
 	flowSubmitSig       string
+	erc20Addr           string
+	erc20TransferSig    string
+}
+
+type storeData struct {
+	txs            []*store.Tx
+	erc20Transfers []*store.Erc20Transfer
+	submits        []*store.Submit
 }
 
 // MustNewSyncer creates an instance of Syncer to sync blockchain data.
@@ -42,6 +50,12 @@ func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, conf SyncConfig, ca
 	}
 	viperutil.MustUnmarshalKey("flow", &flow)
 
+	var charge struct {
+		Erc20TokenAddress           string
+		Erc20TransferEventSignature string
+	}
+	viperutil.MustUnmarshalKey("charge", &charge)
+
 	syncer := &Syncer{
 		conf:                &conf,
 		sdk:                 sdk,
@@ -51,6 +65,8 @@ func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, conf SyncConfig, ca
 		catchupSyncer:       catchupSyncer,
 		flowAddr:            flow.Address,
 		flowSubmitSig:       flow.SubmitEventSignature,
+		erc20Addr:           charge.Erc20TokenAddress,
+		erc20TransferSig:    charge.Erc20TransferEventSignature,
 	}
 
 	// Load last sync block information
@@ -168,11 +184,11 @@ func (s *Syncer) syncOnce() (bool, error) {
 
 	// persist db
 	block := store.NewBlock(data.Block)
-	txs, submits, err := s.parseEthData(data, s.flowAddr, s.flowSubmitSig)
+	sd, err := s.parseEthData(data)
 	if err != nil {
 		return false, err
 	}
-	if err = s.db.Push(block, txs, submits); err != nil {
+	if err = s.db.Push(block, sd.txs, sd.erc20Transfers, sd.submits); err != nil {
 		return false, err
 	}
 
@@ -263,11 +279,11 @@ func (s *Syncer) revertReorgData(revertBlock uint64) error {
 	return nil
 }
 
-func (s *Syncer) parseEthData(data *store.EthData, flowAddr, flowSubmitSig string) ([]*store.Tx, []*store.Submit, error) {
+func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 	blockTime := time.Unix(int64(data.Block.Timestamp), 0)
+	var transfers []*store.Erc20Transfer
 	var submits []*store.Submit
 	var txs []*store.Tx
-	txnHashSet := set.NewSet()
 
 	for _, t := range data.Block.Transactions.Transactions() {
 		rcpt := data.Receipts[t.Hash]
@@ -276,43 +292,83 @@ func (s *Syncer) parseEthData(data *store.EthData, flowAddr, flowSubmitSig strin
 		}
 
 		for _, log := range rcpt.Logs {
-			contract := log.Address.String()
-			topic0 := log.Topics[0].String()
-			if !strings.EqualFold(contract, flowAddr) || topic0 != flowSubmitSig {
-				continue
-			}
-
-			submit, err := s.convertSubmit(&blockTime, log)
+			transfer, err := s.decodeErc20Transfer(&blockTime, log)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
-			submits = append(submits, submit)
-
-			if txnHashSet.Contains(t.Hash) {
-				continue
+			if transfer != nil {
+				transfers = append(transfers, transfer)
 			}
-			txnHashSet.Add(t.Hash)
 
-			tx, err := s.catchupSyncer.convertTx(&blockTime, &t)
+			submit, err := s.decodeSubmit(&blockTime, log)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
+			}
+			if submit != nil {
+				submits = append(submits, submit)
+			}
+		}
+
+		if len(submits) > 0 {
+			tx, err := s.catchupSyncer.convertTx(&blockTime, &t, rcpt)
+			if err != nil {
+				return nil, err
 			}
 			txs = append(txs, tx)
 		}
 	}
 
-	return txs, submits, nil
+	return &storeData{txs, transfers, submits}, nil
 }
 
-func (s *Syncer) convertSubmit(blkTime *time.Time, log *types.Log) (*store.Submit, error) {
-	submit, err := store.NewSubmit(blkTime, log)
+func (s *Syncer) decodeSubmit(blkTime *time.Time, log *types.Log) (*store.Submit, error) {
+	addr := log.Address.String()
+	sig := log.Topics[0].String()
+	if !strings.EqualFold(addr, s.flowAddr) || sig != s.flowSubmitSig {
+		return nil, nil
+	}
+
+	submit, err := store.NewSubmit(blkTime, log, nhContract.DummyFlowFilterer())
 	if err != nil {
 		return nil, err
 	}
+
 	senderId, err := s.db.AddressStore.Add(nil, submit.Sender, blkTime)
 	if err != nil {
 		return nil, err
 	}
+
 	submit.SenderId = senderId
+
 	return submit, nil
+}
+
+func (s *Syncer) decodeErc20Transfer(blkTime *time.Time, log *types.Log) (*store.Erc20Transfer, error) {
+	addr := log.Address.String()
+	sig := log.Topics[0].String()
+	if !strings.EqualFold(addr, s.erc20Addr) || sig != s.erc20TransferSig || len(log.Topics) < 3 ||
+		log.Topics[2].String()[26:] != s.flowAddr[2:] {
+		return nil, nil
+	}
+
+	transfer, err := store.NewErc20Transfer(blkTime, log, nhContract.DummyErc20TokenFilterer())
+	if err != nil {
+		return nil, err
+	}
+
+	addrIds := [3]uint64{}
+	adders := []string{transfer.Contract, transfer.From, transfer.To}
+	for i, adder := range adders {
+		addrId, err := s.db.AddressStore.Add(nil, adder, blkTime)
+		if err != nil {
+			return nil, err
+		}
+		addrIds[i] = addrId
+	}
+
+	transfer.ContractId = addrIds[0]
+	transfer.FromId = addrIds[1]
+	transfer.ToId = addrIds[2]
+
+	return transfer, nil
 }
