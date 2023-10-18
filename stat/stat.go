@@ -17,7 +17,6 @@ const (
 	TenMin = "10m"
 	Hour   = "1h"
 	Day    = "1d"
-	Month  = "1M"
 )
 
 var (
@@ -30,6 +29,13 @@ var (
 		TenMin: time.Minute * 10,
 		Hour:   time.Hour,
 		Day:    time.Hour * 24,
+	}
+
+	IntervalTypes = map[string]string{
+		"min":   Min,
+		"10min": TenMin,
+		"hour":  Hour,
+		"day":   Day,
 	}
 )
 
@@ -156,7 +162,7 @@ func (as *AbsStat) DoStat(ctx context.Context, wg *sync.WaitGroup) {
 
 		err = as.calculateStat(timeRange)
 		if err != nil {
-			logrus.WithError(err).Error("stat txs")
+			logrus.WithError(err).Error("do stat")
 			time.Sleep(time.Second * 10)
 			continue
 		}

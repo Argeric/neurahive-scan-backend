@@ -4,6 +4,7 @@ import (
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	nhContract "github.com/Conflux-Chain/neurahive-scan/contract"
 	"github.com/openweb3/web3go/types"
+	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"time"
@@ -63,4 +64,32 @@ func (ets *Erc20TransferStore) Add(dbTx *gorm.DB, transfers []*Erc20Transfer) er
 
 func (ets *Erc20TransferStore) Pop(dbTx *gorm.DB, block uint64) error {
 	return dbTx.Where("block_number >= ?", block).Delete(&Erc20Transfer{}).Error
+}
+
+func (ets *Erc20TransferStore) Sum(startTime, endTime *time.Time) (uint64, error) {
+	if startTime == nil && endTime == nil {
+		return 0, errors.New("At least provide one parameter for startTime and endTime")
+	}
+
+	db := ets.DB.Model(&Erc20Transfer{}).Select("IFNULL(sum(`value`), 0) as basic_cost")
+	if startTime != nil && endTime != nil {
+		db = db.Where("created_at >= ? and created_at < ?", startTime, endTime)
+	}
+	if startTime != nil && endTime == nil {
+		db = db.Where("created_at >= ?", startTime)
+	}
+	if startTime == nil && endTime != nil {
+		db = db.Where("created_at < ?", endTime)
+	}
+
+	var sum struct {
+		BasicCost *decimal.Decimal
+	}
+
+	err := db.Find(&sum).Error
+	if err != nil {
+		return 0, err
+	}
+
+	return sum.BasicCost.BigInt().Uint64(), nil
 }

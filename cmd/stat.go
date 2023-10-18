@@ -38,6 +38,8 @@ func startStatService(*cobra.Command, []string) {
 	go stTx.DoStat(ctx, &wg)
 	stSubmit := stat.MustNewStatSubmit(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
 	go stSubmit.DoStat(ctx, &wg)
+	stBasicCost := stat.MustNewStatBasicCost(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
+	go stBasicCost.DoStat(ctx, &wg)
 
 	GracefulShutdown(&wg, cancel)
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"github.com/Conflux-Chain/neurahive-scan/stat"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -28,6 +29,16 @@ func listDataStat(c *gin.Context) (interface{}, error) {
 	return result, nil
 }
 
+func listBasicCostStat(c *gin.Context) (interface{}, error) {
+	costStat := new([]store.CostStat)
+	result, err := queryStat(c, db.DB.Model(&store.CostStat{}), costStat)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}, error) {
 	var statP statParam
 	if err := c.ShouldBind(&statP); err != nil {
@@ -45,7 +56,8 @@ func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}
 	}).Infof("queryStat incoming %v", string(r))
 
 	var conds []func(db *gorm.DB) *gorm.DB
-	conds = append(conds, StatType(&statP.IntervalType))
+	intervalType := stat.IntervalTypes[statP.IntervalType]
+	conds = append(conds, StatType(&intervalType))
 	if statP.MinTimestamp != 0 {
 		conds = append(conds, MinTimestamp(statP.MinTimestamp))
 	}

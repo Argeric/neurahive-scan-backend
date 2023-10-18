@@ -6,16 +6,16 @@ import (
 )
 
 type PageParam struct {
-	Skip  int `form:"skip,default:0" binding:"omitempty,gte=0" `
-	Limit int `form:"limit,default:10" binding:"omitempty,lte=2000"`
+	Skip  int `form:"skip,default=0" binding:"omitempty,gte=0"`
+	Limit int `form:"limit,default=10" binding:"omitempty,lte=2000"`
 }
 
 type statParam struct {
 	PageParam
-	MinTimestamp int    `form:"minTimestamp,default:0" binding:"omitempty,number" `
-	MaxTimestamp int    `form:"maxTimestamp,default:0" binding:"omitempty,number"`
-	IntervalType string `form:"intervalType,default:day" binding:"omitempty,oneof=hour day" `
-	Sort         string `form:"sort,default:desc" binding:"omitempty,oneof=asc desc" `
+	MinTimestamp int    `form:"minTimestamp,default=0" binding:"omitempty,number"`
+	MaxTimestamp int    `form:"maxTimestamp,default=0" binding:"omitempty,number"`
+	IntervalType string `form:"intervalType,default=day" binding:"omitempty,oneof=hour day"`
+	Sort         string `form:"sort,default=desc" binding:"omitempty,oneof=asc desc"`
 }
 
 func (sp *statParam) isDesc() bool {
