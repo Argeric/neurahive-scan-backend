@@ -5,38 +5,50 @@ import (
 	"github.com/Conflux-Chain/neurahive-scan/stat"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
+	"strconv"
 )
 
-func listTxStat(c *gin.Context) (interface{}, error) {
-	txStats := new([]store.TxStat)
-	result, err := queryStat(c, db.DB.Model(&store.TxStat{}), txStats)
+func dashboard(c *gin.Context) (interface{}, error) {
+	dataUplinkRate, err := db.ConfigStore.Get(store.CfgDataUplinkRate)
 	if err != nil {
 		return nil, err
 	}
 
+	costStat, err := db.CostStatStore.LastByType(stat.Day)
+	if err != nil {
+		return nil, err
+	}
+	if costStat == nil {
+		return nil, errors.New("Storage basic cost not stat.")
+	}
+
+	var storageBasicCost struct {
+		TokenInfo
+		BasicCostTotal string `json:"basicCostTotal"`
+	}
+	storageBasicCost.TokenInfo = *chargeToken
+	storageBasicCost.BasicCostTotal = strconv.FormatUint(costStat.BasicCostTotal, 10)
+
+	result := make(map[string]interface{})
+	result["averageUplinkRate"] = dataUplinkRate
+	result["storageBasicCost"] = storageBasicCost
+
 	return result, nil
+}
+
+func listTxStat(c *gin.Context) (interface{}, error) {
+	return queryStat(c, db.DB.Model(&store.TxStat{}), new([]store.TxStat))
 }
 
 func listDataStat(c *gin.Context) (interface{}, error) {
-	submitStats := new([]store.SubmitStat)
-	result, err := queryStat(c, db.DB.Model(&store.SubmitStat{}), submitStats)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return queryStat(c, db.DB.Model(&store.SubmitStat{}), new([]store.SubmitStat))
 }
 
 func listBasicCostStat(c *gin.Context) (interface{}, error) {
-	costStat := new([]store.CostStat)
-	result, err := queryStat(c, db.DB.Model(&store.CostStat{}), costStat)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return queryStat(c, db.DB.Model(&store.CostStat{}), new([]store.CostStat))
 }
 
 func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}, error) {

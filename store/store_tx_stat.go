@@ -8,11 +8,11 @@ import (
 )
 
 type TxStat struct {
-	ID       uint64     `gorm:"primaryKey"`
-	StatTime *time.Time `gorm:"not null;index:idx_statTime_statType,unique,priority:1"`
-	StatType string     `gorm:"type:char(3);not null;index:idx_statTime_statType,unique,priority:2"`
-	TxCount  uint64     `gorm:"not null;default:0"`
-	TxTotal  uint64     `gorm:"not null;default:0"`
+	ID       uint64     `gorm:"primaryKey" json:"-"`
+	StatTime *time.Time `gorm:"not null;index:idx_statTime_statType,unique,priority:1" json:"statTime"`
+	StatType string     `gorm:"type:char(3);not null;index:idx_statTime_statType,unique,priority:2" json:"statType"`
+	TxCount  uint64     `gorm:"not null;default:0" json:"txCount"`
+	TxTotal  uint64     `gorm:"not null;default:0" json:"txTotal"`
 }
 
 func (TxStat) TableName() string {

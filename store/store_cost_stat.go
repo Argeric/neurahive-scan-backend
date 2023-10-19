@@ -8,11 +8,11 @@ import (
 )
 
 type CostStat struct {
-	ID             uint64     `gorm:"primaryKey"`
-	StatTime       *time.Time `gorm:"not null;index:idx_statTime_statType,unique,priority:1"`
-	StatType       string     `gorm:"type:char(3);not null;index:idx_statTime_statType,unique,priority:2"`
-	BasicCost      uint64     `gorm:"not null;default:0"` // The basic cost for storage
-	BasicCostTotal uint64     `gorm:"not null;default:0"` // The total basic cost for storage
+	ID             uint64     `gorm:"primaryKey" json:"-"`
+	StatTime       *time.Time `gorm:"not null;index:idx_statTime_statType,unique,priority:1" json:"statTime"`
+	StatType       string     `gorm:"type:char(3);not null;index:idx_statTime_statType,unique,priority:2" json:"statType"`
+	BasicCost      uint64     `gorm:"not null;default:0" json:"basicCost"`      // The basic cost for storage
+	BasicCostTotal uint64     `gorm:"not null;default:0" json:"basicCostTotal"` // The total basic cost for storage
 }
 
 func (CostStat) TableName() string {

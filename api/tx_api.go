@@ -44,8 +44,8 @@ func listTx(c *gin.Context) (interface{}, error) {
 		storageTx := StorageTx{
 			TxSeq:     submit.SubmissionIndex,
 			BlockNum:  submit.BlockNumber,
-			TxHash:    submit.TxHash,
-			Address:   addrMap[submit.SenderId],
+			TxHash:    "0x" + submit.TxHash,
+			Address:   "0x" + addrMap[submit.SenderId],
 			Method:    "submit",
 			Status:    tx.Status,
 			Timestamp: tx.CreatedAt.Unix(),
@@ -103,7 +103,7 @@ func getTxBrief(c *gin.Context) (interface{}, error) {
 		From:  "0x" + addrMap[submit.SenderId],
 
 		DataSize: submit.SubmissionLength,
-		ChargeInfo: &ChargeInfo{
+		CostInfo: &CostInfo{
 			TokenInfo: *chargeToken,
 			BasicCost: submit.Value.String(),
 		},

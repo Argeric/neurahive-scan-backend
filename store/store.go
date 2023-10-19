@@ -20,6 +20,7 @@ type MysqlStore struct {
 	*SubmitStatStore
 	*Erc20TransferStore
 	*CostStatStore
+	*ConfigStore
 }
 
 func MustNewStore(db *gorm.DB) *MysqlStore {
@@ -33,6 +34,7 @@ func MustNewStore(db *gorm.DB) *MysqlStore {
 		SubmitStatStore:    newSubmitStatStore(db),
 		Erc20TransferStore: newErc20TransferStore(db),
 		CostStatStore:      newCostStatStore(db),
+		ConfigStore:        newConfigStore(db),
 	}
 }
 

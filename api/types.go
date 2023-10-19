@@ -43,7 +43,7 @@ type TokenInfo struct {
 	Decimals uint8  `json:"decimals"`
 }
 
-type ChargeInfo struct {
+type CostInfo struct {
 	TokenInfo `json:"tokenInfo"`
 	BasicCost string `json:"basicCost"`
 }
@@ -58,10 +58,10 @@ type TxBrief struct {
 	From   string `json:"from"`
 	Method string `json:"method" default:"submit"`
 
-	DataHash   string      `json:"dataHash"  default:""`
-	DataSize   uint64      `json:"dataSize"`
-	Expiration uint64      `json:"expiration"  default:"0""`
-	ChargeInfo *ChargeInfo `json:"chargeInfo"`
+	DataHash   string    `json:"dataHash"  default:""`
+	DataSize   uint64    `json:"dataSize"`
+	Expiration uint64    `json:"expiration"  default:"0""`
+	CostInfo   *CostInfo `json:"costInfo"`
 
 	BlockNumber uint64 `json:"blockNumber"`
 	TxHash      string `json:"txHash"`

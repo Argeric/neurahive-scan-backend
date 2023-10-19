@@ -55,6 +55,7 @@ func RegisterRouter(router *gin.Engine) {
 	apiRoute := router.Group("/api")
 
 	statRoute := apiRoute.Group("/statistic")
+	statRoute.GET("dashboard", api.Wrap(dashboard))
 	statRoute.GET("transaction/list", api.Wrap(listTxStat))
 	statRoute.GET("storage/list", api.Wrap(listDataStat))
 	statRoute.GET("cost/basic/list", api.Wrap(listBasicCostStat))

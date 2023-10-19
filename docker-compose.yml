@@ -1,0 +1,31 @@
+version: '3.3'
+
+services:
+  sync:
+    build: .
+    image: neurahive:latest
+    command: sync
+    restart: unless-stopped
+    environment:
+      - NEURAHIVE_LOG_LEVEL=info
+    network_mode: host
+    container_name: neurahive-sync
+
+  stat:
+    image: neurahive:latest
+    command: stat
+    restart: unless-stopped
+    environment:
+      - NEURAHIVE_LOG_LEVEL=info
+    network_mode: host
+    container_name: neurahive-stat
+
+  api:
+    image: neurahive:latest
+    command: api
+    restart: unless-stopped
+    environment:
+      - NEURAHIVE_LOG_LEVEL=info
+      - NEURAHIVE_API_ENDPOINT=:16451
+    network_mode: host
+    container_name: neurahive-api
