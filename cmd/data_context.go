@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	"github.com/Conflux-Chain/go-conflux-util/viper"
+	"github.com/Conflux-Chain/neurahive-client/node"
 	"github.com/Conflux-Chain/neurahive-scan/store"
+	providers "github.com/openweb3/go-rpc-provider/provider_wrapper"
 	"github.com/openweb3/web3go"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -16,11 +18,20 @@ import (
 
 // DataContext context to hold sdk clients for blockchain interoperation.
 type DataContext struct {
-	Eth *web3go.Client
-	DB  *store.MysqlStore
+	Eth   *web3go.Client
+	L2Sdk *node.Client
+	DB    *store.MysqlStore
 }
 
 type SdkConfig struct {
+	Url             string
+	Retry           int
+	RetryInterval   time.Duration `default:"1s"`
+	RequestTimeout  time.Duration `default:"3s"`
+	MaxConnsPerHost int           `default:"1024"`
+}
+
+type L2SdkConfig struct {
 	Url             string
 	Retry           int
 	RetryInterval   time.Duration `default:"1s"`
@@ -55,9 +66,18 @@ func MustInitDataContext() DataContext {
 		WithMaxConnectionPerHost(sdkCfg.MaxConnsPerHost)
 	eth := web3go.MustNewClientWithOption(sdkCfg.Url, opt)
 
+	l2SdkCfg := L2SdkConfig{}
+	viper.MustUnmarshalKey("storage", &l2SdkCfg)
+	opt2 := providers.Option{}
+	opt2.WithRetry(l2SdkCfg.Retry, l2SdkCfg.RetryInterval).
+		WithTimout(l2SdkCfg.RequestTimeout).
+		WithMaxConnectionPerHost(l2SdkCfg.MaxConnsPerHost)
+	l2Sdk := node.MustNewClient(l2SdkCfg.Url, opt2)
+
 	return DataContext{
-		DB:  store.MustNewStore(db),
-		Eth: eth,
+		DB:    store.MustNewStore(db),
+		L2Sdk: l2Sdk,
+		Eth:   eth,
 	}
 }
 

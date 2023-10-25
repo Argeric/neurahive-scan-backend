@@ -3,13 +3,27 @@ eth:
   # Fullnode rpc url
   url: http://evmtestnet.confluxrpc.com
   # Retry times if failure, if 0 never
-  retry: 0
+  # retry: 0
   # Interval duration before each retry
-  retryInterval: 1s
+  # retryInterval: 1s
   # Request timeout duration
-  requestTimeout: 3s
+  # requestTimeout: 3s
   # Max connections allowed per fullnode
-  maxConnsPerHost: 1024
+  # maxConnsPerHost: 1024
+
+# storage SDK client configurations
+storage:
+  # Storage node rpc url
+  url: :5678
+  # Retry times if failure, if 0 never
+  # retry: 0
+  # Interval duration before each retry
+  # retryInterval: 1s
+  # Request timeout duration
+  # requestTimeout: 3s
+  # Max connections allowed per storage node
+  # maxConnsPerHost: 1024
+
 
 # Blockchain sync configurations
 sync:

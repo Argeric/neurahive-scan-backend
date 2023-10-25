@@ -50,7 +50,7 @@ func (cs *ConfigStore) Upsert(name, content string) error {
 
 func (cs *ConfigStore) Get(name string) (*string, error) {
 	var cfg Config
-	exist, err := cs.Exists(&cfg, "name = ?", CfgDataUplinkRate)
+	exist, err := cs.Exists(&cfg, "name = ?", name)
 	if err != nil {
 		return nil, err
 	}

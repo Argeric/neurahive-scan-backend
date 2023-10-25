@@ -5,6 +5,7 @@ import (
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
 	"github.com/Conflux-Chain/neurahive-client/contract"
 	"github.com/openweb3/web3go/types"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"time"
 )
@@ -16,6 +17,7 @@ type Submit struct {
 	CreatedAt        *time.Time `gorm:"not null;index:idx_createdAt,sort:desc"`
 	Sender           string     `gorm:"-"`
 	SenderId         uint64     `gorm:"not null;index:idx_sender_id,priority:1"`
+	RootHash         string     `gorm:"size:64;index:idx_root,length:10"`
 	Identity         string     `gorm:"size:64;not null"`
 	SubmissionIndex  uint64     `gorm:"not null"`
 	StartPos         uint64     `gorm:"not null"`
@@ -80,4 +82,26 @@ func (ss *SubmitStore) Count(startTime, endTime *time.Time) (uint64, uint64, err
 	}
 
 	return uint64(result.FileCount), uint64(result.DataSize), nil
+}
+
+func (ss *SubmitStore) FirstWithoutRootHash() (*Submit, error) {
+	var submit Submit
+	err := ss.DB.Where("root_hash = ?", "").First(&submit).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &submit, nil
+}
+
+func (ss *SubmitStore) Update(submit *Submit) error {
+	if err := ss.DB.Model(&submit).Updates(submit).Error; err != nil {
+		return err
+	}
+
+	return nil
 }

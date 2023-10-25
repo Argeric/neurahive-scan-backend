@@ -69,7 +69,7 @@ func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}
 
 	var conds []func(db *gorm.DB) *gorm.DB
 	intervalType := stat.IntervalTypes[statP.IntervalType]
-	conds = append(conds, StatType(&intervalType))
+	conds = append(conds, StatType(intervalType))
 	if statP.MinTimestamp != 0 {
 		conds = append(conds, MinTimestamp(statP.MinTimestamp))
 	}
@@ -89,9 +89,9 @@ func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}
 	return result, nil
 }
 
-func StatType(t *string) func(db *gorm.DB) *gorm.DB {
+func StatType(t string) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		return db.Where("stat_type = ?", *t)
+		return db.Where("stat_type = ?", t)
 	}
 }
 

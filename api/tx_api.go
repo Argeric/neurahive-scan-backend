@@ -8,17 +8,32 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 	"strconv"
+	"strings"
 	"time"
 )
 
 func listTx(c *gin.Context) (interface{}, error) {
-	var pageP PageParam
-	if err := c.ShouldBind(&pageP); err != nil {
+	var param listTxParam
+	if err := c.ShouldBind(&param); err != nil {
 		return nil, err
 	}
 
+	dbRaw := db.DB.Model(&store.Submit{})
+	var conds []func(db *gorm.DB) *gorm.DB
+	if param.Address != "" {
+		addr, err := db.AddressStore.Get(param.Address)
+		if err != nil {
+			return nil, err
+		}
+		conds = append(conds, SenderId(addr.Id))
+	}
+	if param.RootHash != "" {
+		conds = append(conds, RootHash(param.RootHash))
+	}
+	dbRaw.Scopes(conds...)
+
 	submits := new([]store.Submit)
-	total, err := db.List(db.DB.Model(&store.Submit{}), true, pageP.Skip, pageP.Limit, submits)
+	total, err := db.List(dbRaw, true, param.Skip, param.Limit, submits)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +60,7 @@ func listTx(c *gin.Context) (interface{}, error) {
 			TxSeq:     submit.SubmissionIndex,
 			BlockNum:  submit.BlockNumber,
 			TxHash:    "0x" + submit.TxHash,
+			RootHash:  "0x" + submit.RootHash,
 			Address:   "0x" + addrMap[submit.SenderId],
 			Method:    "submit",
 			Status:    tx.Status,
@@ -60,7 +76,7 @@ func listTx(c *gin.Context) (interface{}, error) {
 }
 
 func getTxBrief(c *gin.Context) (interface{}, error) {
-	var param txQueryParam
+	var param queryTxParam
 	if err := c.ShouldBind(&param); err != nil {
 		return nil, err
 	}
@@ -69,6 +85,7 @@ func getTxBrief(c *gin.Context) (interface{}, error) {
 		SubmissionIndex  uint64
 		SubmissionLength uint64
 		SenderId         uint64
+		RootHash         string
 		BlockNumber      uint64
 		Hash             string
 		CreatedAt        *time.Time
@@ -79,8 +96,8 @@ func getTxBrief(c *gin.Context) (interface{}, error) {
 		GasLimit         uint64
 	}
 
-	err := db.DB.Raw(`select s.submission_index, s.submission_length, s.sender_id, t.block_number, t.hash, 
-       t.created_at, t.status, t.gas_fee, t.gas_used, t.gas_limit, ts.value from submits s 
+	err := db.DB.Raw(`select s.submission_index, s.submission_length, s.sender_id, s.root_hash, t.block_number, 
+       t.hash, t.created_at, t.status, t.gas_fee, t.gas_used, t.gas_limit, ts.value from submits s 
        left join txs t on s.tx_hash = t.hash 
        left join erc20_transfers ts on t.hash = ts.tx_hash 
        where s.submission_index =?`, param.TxSeq).Take(&submit).Error
@@ -99,15 +116,15 @@ func getTxBrief(c *gin.Context) (interface{}, error) {
 	}
 
 	result := TxBrief{
-		TxSeq: strconv.FormatUint(submit.SubmissionIndex, 10),
-		From:  "0x" + addrMap[submit.SenderId],
-
+		TxSeq:    strconv.FormatUint(submit.SubmissionIndex, 10),
+		From:     "0x" + addrMap[submit.SenderId],
+		Method:   "submit",
+		RootHash: "0x" + submit.RootHash,
 		DataSize: submit.SubmissionLength,
 		CostInfo: &CostInfo{
 			TokenInfo: *chargeToken,
 			BasicCost: submit.Value.String(),
 		},
-
 		BlockNumber: submit.BlockNumber,
 		TxHash:      "0x" + submit.Hash,
 		Timestamp:   uint64(submit.CreatedAt.Unix()),
@@ -121,7 +138,7 @@ func getTxBrief(c *gin.Context) (interface{}, error) {
 }
 
 func getTxDetail(c *gin.Context) (interface{}, error) {
-	var param txQueryParam
+	var param queryTxParam
 	if err := c.ShouldBind(&param); err != nil {
 		return nil, err
 	}
@@ -143,6 +160,7 @@ func getTxDetail(c *gin.Context) (interface{}, error) {
 
 	result := TxDetail{
 		TxSeq:       strconv.FormatUint(submit.SubmissionIndex, 10),
+		RootHash:    "0x" + submit.RootHash,
 		StartPos:    submit.StartPos,
 		EndPos:      submit.StartPos + submit.Length,
 		PieceCounts: submit.Nodes,
@@ -150,4 +168,16 @@ func getTxDetail(c *gin.Context) (interface{}, error) {
 	}
 
 	return result, nil
+}
+
+func SenderId(si uint64) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("sender_id = ?", si)
+	}
+}
+
+func RootHash(rh string) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("root_hash = ?", strings.ToLower(strings.TrimPrefix(rh, "0x")))
+	}
 }

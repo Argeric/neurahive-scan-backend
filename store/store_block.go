@@ -70,12 +70,15 @@ func (bs *BlockStore) BlockHash(blockNumber uint64) (string, bool, error) {
 func (bs *BlockStore) FirstBlockAfterTime(t *time.Time) (uint64, bool, error) {
 	var blk Block
 
-	existed, err := bs.Store.Exists(&blk, "created_at >= ?", t)
-	if err != nil {
-		return 0, false, err
+	result := bs.DB.Where("created_at >= ?", t).Limit(1).Find(&blk)
+	if result.Error != nil {
+		return 0, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return 0, false, nil
 	}
 
-	return blk.BlockNumber, existed, nil
+	return blk.BlockNumber, true, nil
 }
 
 func (bs *BlockStore) Pop(dbTx *gorm.DB, block uint64) error {

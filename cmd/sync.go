@@ -29,8 +29,9 @@ func startSyncService(*cobra.Command, []string) {
 	var conf nhSync.SyncConfig
 	viperutil.MustUnmarshalKey("sync", &conf)
 
-	catchupSyncer := nhSync.MustNewCatchupSyncer(dataCtx.Eth, dataCtx.DB, conf)
-	syncer := nhSync.MustNewSyncer(dataCtx.Eth, dataCtx.DB, conf, catchupSyncer)
+	cs := nhSync.MustNewCatchupSyncer(dataCtx.Eth, dataCtx.DB, conf)
+	ss := nhSync.MustNewStorageSyncer(dataCtx.L2Sdk, dataCtx.DB)
+	syncer := nhSync.MustNewSyncer(dataCtx.Eth, dataCtx.DB, conf, cs, ss)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup

@@ -30,6 +30,7 @@ type Syncer struct {
 	syncIntervalNormal  time.Duration
 	syncIntervalCatchUp time.Duration
 	catchupSyncer       *CatchupSyncer
+	storageSyncer       *StorageSyncer
 	flowAddr            string
 	flowSubmitSig       string
 	erc20Addr           string
@@ -43,7 +44,7 @@ type storeData struct {
 }
 
 // MustNewSyncer creates an instance of Syncer to sync blockchain data.
-func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, conf SyncConfig, catchupSyncer *CatchupSyncer) *Syncer {
+func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, cf SyncConfig, cs *CatchupSyncer, ss *StorageSyncer) *Syncer {
 	var flow struct {
 		Address              string
 		SubmitEventSignature string
@@ -57,12 +58,13 @@ func MustNewSyncer(sdk *web3go.Client, db *store.MysqlStore, conf SyncConfig, ca
 	viperutil.MustUnmarshalKey("charge", &charge)
 
 	syncer := &Syncer{
-		conf:                &conf,
+		conf:                &cf,
 		sdk:                 sdk,
 		db:                  db,
 		syncIntervalNormal:  time.Second,
 		syncIntervalCatchUp: time.Millisecond,
-		catchupSyncer:       catchupSyncer,
+		catchupSyncer:       cs,
+		storageSyncer:       ss,
 		flowAddr:            flow.Address,
 		flowSubmitSig:       flow.SubmitEventSignature,
 		erc20Addr:           charge.Erc20TokenAddress,
@@ -114,6 +116,8 @@ func (s *Syncer) Sync(ctx context.Context, wg *sync.WaitGroup) {
 	s.catchupSyncer.Sync(ctx)
 	s.currentBlock = s.catchupSyncer.finalizedBlock + 1
 	logrus.WithField("block", s.catchupSyncer.finalizedBlock).Info("Catchup syncer done")
+
+	go s.storageSyncer.Sync(ctx)
 
 	ticker := time.NewTicker(s.syncIntervalCatchUp)
 	defer ticker.Stop()

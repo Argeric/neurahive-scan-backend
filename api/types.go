@@ -22,7 +22,13 @@ func (sp *statParam) isDesc() bool {
 	return strings.EqualFold(sp.Sort, "desc")
 }
 
-type txQueryParam struct {
+type listTxParam struct {
+	PageParam
+	Address  string `form:"address" binding:"omitempty"`
+	RootHash string `form:"rootHash" binding:"omitempty"`
+}
+
+type queryTxParam struct {
 	TxSeq *uint64 `form:"txSeq" binding:"required,number,gte=0"`
 }
 
@@ -30,6 +36,7 @@ type StorageTx struct {
 	TxSeq     uint64 `json:"txSeq"`
 	BlockNum  uint64 `json:"blockNum"`
 	TxHash    string `json:"txHash"`
+	RootHash  string `json:"rootHash"`
 	Address   string `json:"address"`
 	Method    string `json:"method"`
 	Status    uint64 `json:"status"`
@@ -56,11 +63,11 @@ type SubmissionNode struct {
 type TxBrief struct {
 	TxSeq  string `json:"txSeq"`
 	From   string `json:"from"`
-	Method string `json:"method" default:"submit"`
+	Method string `json:"method"`
 
-	DataHash   string    `json:"dataHash"  default:""`
+	RootHash   string    `json:"rootHash"`
 	DataSize   uint64    `json:"dataSize"`
-	Expiration uint64    `json:"expiration"  default:"0""`
+	Expiration uint64    `json:"expiration"`
 	CostInfo   *CostInfo `json:"costInfo"`
 
 	BlockNumber uint64 `json:"blockNumber"`
@@ -74,7 +81,7 @@ type TxBrief struct {
 
 type TxDetail struct {
 	TxSeq    string `json:"txSeq"`
-	DataHash string `json:"dataHash"  default:""`
+	RootHash string `json:"rootHash"`
 
 	StartPos    uint64            `json:"startPos"`
 	EndPos      uint64            `json:"endPos"`

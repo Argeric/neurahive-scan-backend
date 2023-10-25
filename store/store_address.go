@@ -2,6 +2,7 @@ package store
 
 import (
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"strings"
 	"time"
@@ -68,4 +69,20 @@ func (as *AddressStore) MapAddrIdToHex(addrIds []uint64) (map[uint64]string, err
 	}
 
 	return m, nil
+}
+
+func (as *AddressStore) Get(hex string) (*Address, error) {
+	hexNoPrefix := strings.ToLower(strings.TrimPrefix(hex, "0x"))
+
+	var addr Address
+	exist, err := as.Store.Exists(&addr, "hex = ?", hexNoPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exist {
+		return nil, errors.New("Address not exist.")
+	}
+
+	return &addr, nil
 }
