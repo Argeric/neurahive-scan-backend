@@ -10,7 +10,7 @@ import (
 type TxStat struct {
 	ID       uint64     `gorm:"primaryKey" json:"-"`
 	StatTime *time.Time `gorm:"not null;index:idx_statTime_statType,unique,priority:1" json:"statTime"`
-	StatType string     `gorm:"type:char(3);not null;index:idx_statTime_statType,unique,priority:2" json:"statType"`
+	StatType string     `gorm:"type:char(3);not null;index:idx_statTime_statType,unique,priority:2" json:"-"`
 	TxCount  uint64     `gorm:"not null;default:0" json:"txCount"`
 	TxTotal  uint64     `gorm:"not null;default:0" json:"txTotal"`
 }

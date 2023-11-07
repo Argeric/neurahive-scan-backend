@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/Conflux-Chain/neurahive-scan/store"
 	"math/big"
 	"strings"
 )
@@ -60,6 +61,11 @@ type SubmissionNode struct {
 	Height *big.Int `json:"height"`
 }
 
+type TxList struct {
+	Total int64       `json:"total"`
+	List  []StorageTx `json:"list"`
+}
+
 type TxBrief struct {
 	TxSeq  string `json:"txSeq"`
 	From   string `json:"from"`
@@ -87,4 +93,29 @@ type TxDetail struct {
 	EndPos      uint64            `json:"endPos"`
 	PieceCounts uint64            `json:"pieceCounts"`
 	Pieces      []*SubmissionNode `json:"pieces"`
+}
+
+type StorageBasicCost struct {
+	TokenInfo
+	BasicCostTotal string `json:"basicCostTotal"`
+}
+
+type Dashboard struct {
+	StorageBasicCost  `json:"storageBasicCost"`
+	AverageUplinkRate string `json:"averageUplinkRate"`
+}
+
+type TxStatList struct {
+	Total int64          `json:"total"`
+	List  []store.TxStat `json:"list"`
+}
+
+type DataStatList struct {
+	Total int64              `json:"total"`
+	List  []store.SubmitStat `json:"list"`
+}
+
+type BasicCostStatList struct {
+	Total int64            `json:"total"`
+	List  []store.CostStat `json:"list"`
 }

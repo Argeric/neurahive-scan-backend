@@ -1,7 +1,7 @@
 # EVM space SDK client configurations
 eth:
-  # Fullnode rpc url
-  url: http://evmtestnet.confluxrpc.com
+  # Fullnode HTTP endpoint
+  url: https://evmtestnet.confluxrpc.com/
   # Retry times if failure, if 0 never
   # retry: 0
   # Interval duration before each retry
@@ -23,7 +23,6 @@ storage:
   # requestTimeout: 3s
   # Max connections allowed per storage node
   # maxConnsPerHost: 1024
-
 
 # Blockchain sync configurations
 sync:
@@ -63,7 +62,6 @@ store:
     # maxOpenConns: 10
     # maxIdleConns: 10
 
-# Statistic configurations
 stat:
   # The block number from which to stat
   blockOnStatBegin: 134253185

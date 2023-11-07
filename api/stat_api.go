@@ -25,16 +25,14 @@ func dashboard(c *gin.Context) (interface{}, error) {
 		return nil, errors.New("Storage basic cost not stat.")
 	}
 
-	var storageBasicCost struct {
-		TokenInfo
-		BasicCostTotal string `json:"basicCostTotal"`
+	storageBasicCost := StorageBasicCost{
+		TokenInfo:      *chargeToken,
+		BasicCostTotal: strconv.FormatUint(costStat.BasicCostTotal, 10),
 	}
-	storageBasicCost.TokenInfo = *chargeToken
-	storageBasicCost.BasicCostTotal = strconv.FormatUint(costStat.BasicCostTotal, 10)
-
-	result := make(map[string]interface{})
-	result["averageUplinkRate"] = dataUplinkRate
-	result["storageBasicCost"] = storageBasicCost
+	result := Dashboard{
+		AverageUplinkRate: *dataUplinkRate,
+		StorageBasicCost:  storageBasicCost,
+	}
 
 	return result, nil
 }

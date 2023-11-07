@@ -69,9 +69,10 @@ func listTx(c *gin.Context) (interface{}, error) {
 		storageTxs = append(storageTxs, storageTx)
 	}
 
-	result := make(map[string]interface{})
-	result["total"] = total
-	result["list"] = storageTxs
+	result := TxList{
+		Total: total,
+		List:  storageTxs,
+	}
 	return result, nil
 }
 
