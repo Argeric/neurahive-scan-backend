@@ -240,7 +240,7 @@ func (s *CatchupSyncer) convertTxs(ctx context.Context, logs []types.Log, blockN
 	for _, t := range txs {
 		ts := blockNum2TimeMap[t.tx.BlockNumber.Uint64()]
 		blockTime := time.Unix(int64(ts), 0)
-		txn, err := s.convertTx(&blockTime, t.tx, t.rcpt)
+		txn, err := s.convertTx(blockTime, t.tx, t.rcpt)
 		if err != nil {
 			return nil, err
 		}
@@ -250,8 +250,8 @@ func (s *CatchupSyncer) convertTxs(ctx context.Context, logs []types.Log, blockN
 	return txns, nil
 }
 
-func (s *CatchupSyncer) convertTx(blkTime *time.Time, txn *types.TransactionDetail, rcpt *types.Receipt) (*store.Tx, error) {
-	tx := store.NewTx(blkTime, txn, rcpt)
+func (s *CatchupSyncer) convertTx(blkTime time.Time, txn *types.TransactionDetail, rcpt *types.Receipt) (*store.Tx, error) {
+	tx := store.NewTx(&blkTime, txn, rcpt)
 	fromId, err := s.db.AddressStore.Add(nil, tx.From, blkTime)
 	if err != nil {
 		return nil, err
@@ -276,7 +276,7 @@ func (s *CatchupSyncer) convertSubmits(logs []types.Log, blockNum2TimeMap map[ui
 			return nil, err
 		}
 
-		senderId, err := s.db.AddressStore.Add(nil, submit.Sender, &blockTime)
+		senderId, err := s.db.AddressStore.Add(nil, submit.Sender, blockTime)
 		if err != nil {
 			return nil, err
 		}
@@ -302,7 +302,7 @@ func (s *CatchupSyncer) convertErc20Transfer(logs []types.Log, blockNum2TimeMap 
 		addrIds := [3]uint64{}
 		adders := []string{transfer.Contract, transfer.From, transfer.To}
 		for i, adder := range adders {
-			addrId, err := s.db.AddressStore.Add(nil, adder, &blockTime)
+			addrId, err := s.db.AddressStore.Add(nil, adder, blockTime)
 			if err != nil {
 				return nil, err
 			}

@@ -2,17 +2,14 @@ package store
 
 import (
 	"github.com/Conflux-Chain/go-conflux-util/store/mysql"
-	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"strings"
 	"time"
 )
 
 type Address struct {
-	Id        uint64     `gorm:"primary_key"`
-	Hex       string     `gorm:"type:varchar(40);unique:idx_hex"`
-	BlockTime *time.Time `gorm:"not null;index:idx_blockTime,sort:desc"`
-	CreatedAt *time.Time
+	Id        uint64
+	Address   string    `gorm:"size:64;unique"`
+	BlockTime time.Time `gorm:"not null"`
 }
 
 func (Address) TableName() string {
@@ -29,11 +26,9 @@ func newAddressStore(db *gorm.DB) *AddressStore {
 	}
 }
 
-func (as *AddressStore) Add(dbTx *gorm.DB, data string, blockTime *time.Time) (uint64, error) {
-	hex := strings.ToLower(strings.TrimPrefix(data, "0x"))
-
+func (as *AddressStore) Add(dbTx *gorm.DB, address string, blockTime time.Time) (uint64, error) {
 	var addr Address
-	existed, err := as.Store.Exists(&addr, "hex = ?", hex) //TODO using LRU cache for improving the query performance
+	existed, err := as.Store.Exists(&addr, "address = ?", address) //TODO using LRU cache for improving the query performance
 	if err != nil {
 		return 0, err
 	}
@@ -42,7 +37,7 @@ func (as *AddressStore) Add(dbTx *gorm.DB, data string, blockTime *time.Time) (u
 	}
 
 	addr = Address{
-		Hex:       hex,
+		Address:   address,
 		BlockTime: blockTime,
 	}
 	if dbTx == nil {
@@ -55,34 +50,24 @@ func (as *AddressStore) Add(dbTx *gorm.DB, data string, blockTime *time.Time) (u
 	return addr.Id, nil
 }
 
-// MapAddrIdToHex TODO LRU cache
-func (as *AddressStore) MapAddrIdToHex(addrIds []uint64) (map[uint64]string, error) {
+// BatchGetAddresses TODO LRU cache
+func (as *AddressStore) BatchGetAddresses(addrIds []uint64) (map[uint64]Address, error) {
 	addresses := new([]Address)
 	err := as.DB.Raw("select * from addresses where id in ?", addrIds).Scan(addresses).Error
 	if err != nil {
 		return nil, err
 	}
 
-	m := make(map[uint64]string)
+	m := make(map[uint64]Address)
 	for _, addr := range *addresses {
-		m[addr.Id] = addr.Hex
+		m[addr.Id] = addr
 	}
 
 	return m, nil
 }
 
-func (as *AddressStore) Get(hex string) (*Address, error) {
-	hexNoPrefix := strings.ToLower(strings.TrimPrefix(hex, "0x"))
-
+func (as *AddressStore) Get(address string) (Address, bool, error) {
 	var addr Address
-	exist, err := as.Store.Exists(&addr, "hex = ?", hexNoPrefix)
-	if err != nil {
-		return nil, err
-	}
-
-	if !exist {
-		return nil, errors.New("Address not exist.")
-	}
-
-	return &addr, nil
+	exist, err := as.Store.Exists(&addr, "address = ?", address)
+	return addr, exist, err
 }

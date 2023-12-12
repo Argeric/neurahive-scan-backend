@@ -304,7 +304,7 @@ func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 				transfers = append(transfers, transfer)
 			}
 
-			submit, err := s.decodeSubmit(&blockTime, log)
+			submit, err := s.decodeSubmit(blockTime, log)
 			if err != nil {
 				return nil, err
 			}
@@ -314,7 +314,7 @@ func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 		}
 
 		if len(submits) > 0 {
-			tx, err := s.catchupSyncer.convertTx(&blockTime, &t, rcpt)
+			tx, err := s.catchupSyncer.convertTx(blockTime, &t, rcpt)
 			if err != nil {
 				return nil, err
 			}
@@ -325,14 +325,14 @@ func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 	return &storeData{txs, transfers, submits}, nil
 }
 
-func (s *Syncer) decodeSubmit(blkTime *time.Time, log *types.Log) (*store.Submit, error) {
+func (s *Syncer) decodeSubmit(blkTime time.Time, log *types.Log) (*store.Submit, error) {
 	addr := log.Address.String()
 	sig := log.Topics[0].String()
 	if !strings.EqualFold(addr, s.flowAddr) || sig != s.flowSubmitSig {
 		return nil, nil
 	}
 
-	submit, err := store.NewSubmit(blkTime, log, nhContract.DummyFlowFilterer())
+	submit, err := store.NewSubmit(&blkTime, log, nhContract.DummyFlowFilterer())
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +363,7 @@ func (s *Syncer) decodeErc20Transfer(blkTime *time.Time, log *types.Log) (*store
 	addrIds := [3]uint64{}
 	adders := []string{transfer.Contract, transfer.From, transfer.To}
 	for i, adder := range adders {
-		addrId, err := s.db.AddressStore.Add(nil, adder, blkTime)
+		addrId, err := s.db.AddressStore.Add(nil, adder, *blkTime)
 		if err != nil {
 			return nil, err
 		}

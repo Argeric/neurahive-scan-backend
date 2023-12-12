@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	commonApi "github.com/Conflux-Chain/go-conflux-util/api"
 	"github.com/Conflux-Chain/neurahive-scan/stat"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/gin-gonic/gin"
@@ -12,9 +13,12 @@ import (
 )
 
 func dashboard(c *gin.Context) (interface{}, error) {
-	dataUplinkRate, err := db.ConfigStore.Get(store.CfgDataUplinkRate)
+	dataUplinkRate, exist, err := db.ConfigStore.Get(store.CfgDataUplinkRate)
 	if err != nil {
-		return nil, err
+		return nil, commonApi.ErrInternal(err)
+	}
+	if !exist {
+		return nil, ErrConfigNotFound
 	}
 
 	costStat, err := db.CostStatStore.LastByType(stat.Day)
@@ -30,7 +34,7 @@ func dashboard(c *gin.Context) (interface{}, error) {
 		BasicCostTotal: strconv.FormatUint(costStat.BasicCostTotal, 10),
 	}
 	result := Dashboard{
-		AverageUplinkRate: *dataUplinkRate,
+		AverageUplinkRate: dataUplinkRate,
 		StorageBasicCost:  storageBasicCost,
 	}
 

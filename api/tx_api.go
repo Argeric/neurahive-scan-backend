@@ -1,6 +1,7 @@
 package api
 
 import (
+	commonApi "github.com/Conflux-Chain/go-conflux-util/api"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -21,9 +22,12 @@ func listTx(c *gin.Context) (interface{}, error) {
 	dbRaw := db.DB.Model(&store.Submit{})
 	var conds []func(db *gorm.DB) *gorm.DB
 	if param.Address != "" {
-		addr, err := db.AddressStore.Get(param.Address)
+		addr, exist, err := db.AddressStore.Get(param.Address)
 		if err != nil {
-			return nil, err
+			return nil, commonApi.ErrInternal(err)
+		}
+		if !exist {
+			return TxList{}, nil
 		}
 		conds = append(conds, SenderId(addr.Id))
 	}
@@ -44,7 +48,7 @@ func listTx(c *gin.Context) (interface{}, error) {
 		addrIds = append(addrIds, submit.SenderId)
 		txHashes = append(txHashes, submit.TxHash)
 	}
-	addrMap, err := db.MapAddrIdToHex(addrIds)
+	addrMap, err := db.BatchGetAddresses(addrIds)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +65,7 @@ func listTx(c *gin.Context) (interface{}, error) {
 			BlockNum:  submit.BlockNumber,
 			TxHash:    "0x" + submit.TxHash,
 			RootHash:  "0x" + submit.RootHash,
-			Address:   "0x" + addrMap[submit.SenderId],
+			Address:   addrMap[submit.SenderId].Address,
 			Method:    "submit",
 			Status:    tx.Status,
 			Timestamp: tx.CreatedAt.Unix(),
@@ -111,14 +115,14 @@ func getTxBrief(c *gin.Context) (interface{}, error) {
 	}
 
 	addrIds := []uint64{submit.SenderId}
-	addrMap, err := db.MapAddrIdToHex(addrIds)
+	addrMap, err := db.BatchGetAddresses(addrIds)
 	if err != nil {
 		return nil, err
 	}
 
 	result := TxBrief{
 		TxSeq:    strconv.FormatUint(submit.SubmissionIndex, 10),
-		From:     "0x" + addrMap[submit.SenderId],
+		From:     addrMap[submit.SenderId].Address,
 		Method:   "submit",
 		RootHash: "0x" + submit.RootHash,
 		DataSize: submit.SubmissionLength,
