@@ -84,22 +84,24 @@ func (ts *StatSubmit) calculateStat(tr *TimeRange) error {
 }
 
 func (ts *StatSubmit) statBasicRange(tr *TimeRange) (*store.SubmitStat, error) {
-	fileCount, dataSize, err := ts.Db.SubmitStore.Count(tr.start, tr.end)
+	delta, err := ts.Db.SubmitStore.Count(*tr.start, *tr.end)
 	if err != nil {
 		return nil, err
 	}
-	fileTotal, dataTotal, err := ts.Db.SubmitStatStore.Sum(nil, tr.start, ts.statType)
+	total, err := ts.Db.SubmitStatStore.Sum(nil, tr.start, ts.statType)
 	if err != nil {
 		return nil, err
 	}
 
 	return &store.SubmitStat{
-		StatTime:  tr.start,
-		StatType:  ts.statType,
-		FileCount: fileCount,
-		FileTotal: fileTotal + fileCount,
-		DataSize:  dataSize,
-		DataTotal: dataTotal + dataSize,
+		StatTime:       tr.start,
+		StatType:       ts.statType,
+		FileCount:      delta.FileCount,
+		FileTotal:      total.FileCount + delta.FileCount,
+		DataSize:       delta.DataSize,
+		DataTotal:      total.DataSize + delta.DataSize,
+		BasicCost:      delta.BasicCost,
+		BasicCostTotal: total.BasicCost + delta.BasicCost,
 	}, nil
 }
 
@@ -109,26 +111,29 @@ func (ts *StatSubmit) statRange(rangEnd *time.Time, srcStatType, descStatType st
 		return nil, err
 	}
 
-	fileCount, dataSize, err := ts.Db.SubmitStatStore.Sum(rangeStart, rangEnd, srcStatType)
+	srcStat, err := ts.Db.SubmitStatStore.Sum(rangeStart, rangEnd, srcStatType)
 	if err != nil {
 		return nil, err
 	}
-	fileTotal, dataTotal, err := ts.Db.SubmitStatStore.Sum(nil, rangeStart, descStatType)
+	destStat, err := ts.Db.SubmitStatStore.Sum(nil, rangeStart, descStatType)
 	if err != nil {
 		return nil, err
 	}
 
 	if latestStat != nil {
-		fileCount += latestStat.FileCount
-		dataSize += latestStat.DataSize
+		srcStat.FileCount += latestStat.FileCount
+		srcStat.DataSize += latestStat.DataSize
+		srcStat.BasicCost += latestStat.BasicCost
 	}
 
 	return &store.SubmitStat{
-		StatTime:  rangeStart,
-		StatType:  descStatType,
-		FileCount: fileCount,
-		FileTotal: fileTotal + fileCount,
-		DataSize:  dataSize,
-		DataTotal: dataTotal + dataSize,
+		StatTime:       rangeStart,
+		StatType:       descStatType,
+		FileCount:      srcStat.FileCount,
+		FileTotal:      destStat.FileCount + srcStat.FileCount,
+		DataSize:       srcStat.DataSize,
+		DataTotal:      destStat.DataSize + srcStat.DataSize,
+		BasicCost:      srcStat.BasicCost,
+		BasicCostTotal: destStat.BasicCost + srcStat.BasicCost,
 	}, nil
 }

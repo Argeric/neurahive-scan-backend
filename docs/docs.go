@@ -617,6 +617,12 @@ const docTemplate = `{
                 },
                 "txSeq": {
                     "type": "integer"
+                },
+				"dataSize": {
+                    "type": "integer"
+                },
+                "baseFee": {
+                    "type": "string"
                 }
             }
         },

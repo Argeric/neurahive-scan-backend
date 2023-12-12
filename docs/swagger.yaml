@@ -70,6 +70,10 @@ definitions:
         type: string
       txSeq:
         type: integer
+      dataSize:
+        type: integer
+      baseFee:
+        type: string
     type: object
   api.SubmissionNode:
     properties:

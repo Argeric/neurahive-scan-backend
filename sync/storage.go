@@ -2,10 +2,10 @@ package sync
 
 import (
 	"context"
-	"github.com/Conflux-Chain/neurahive-client/node"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/zero-gravity-labs/zerog-storage-client/node"
 	"time"
 )
 
@@ -37,7 +37,7 @@ func (s *StorageSyncer) Sync(ctx context.Context) {
 
 		if err := s.syncRootHash(); err != nil {
 			if !errors.Is(err, ErrNoRootHashToSync) {
-				logrus.WithError(err).Error("Sync root hash")
+				logrus.WithError(err).Info("Sync root hash")
 			}
 			time.Sleep(time.Second * 10)
 		}
@@ -53,7 +53,7 @@ func (s *StorageSyncer) syncRootHash() error {
 		return ErrNoRootHashToSync
 	}
 
-	info, err := s.l2Sdk.Neurahive().GetFileInfoByTxSeq(submit.SubmissionIndex)
+	info, err := s.l2Sdk.ZeroGStorage().GetFileInfoByTxSeq(submit.SubmissionIndex)
 	if err != nil {
 		return err
 	}
@@ -62,8 +62,9 @@ func (s *StorageSyncer) syncRootHash() error {
 	}
 
 	updateSubmit := store.Submit{
-		ID:       submit.ID,
-		RootHash: info.Tx.DataMerkleRoot.String()[2:],
+		ID:        submit.ID,
+		RootHash:  info.Tx.DataMerkleRoot.String()[2:],
+		Finalized: info.Finalized,
 	}
 	if err := s.db.SubmitStore.Update(&updateSubmit); err != nil {
 		return err

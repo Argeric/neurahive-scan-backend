@@ -1,19 +1,16 @@
 package api
 
 import (
-	"encoding/hex"
 	"github.com/Conflux-Chain/go-conflux-util/api"
 	viperutil "github.com/Conflux-Chain/go-conflux-util/viper"
 	nhContract "github.com/Conflux-Chain/neurahive-scan/contract"
 	"github.com/Conflux-Chain/neurahive-scan/docs"
 	"github.com/Conflux-Chain/neurahive-scan/store"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	"github.com/openweb3/web3go"
 	"github.com/sirupsen/logrus"
 	"github.com/swaggo/files"
 	"github.com/swaggo/gin-swagger"
-	"strings"
 )
 
 const BasePath = "/api"
@@ -133,7 +130,7 @@ func listDataStatHandler(c *gin.Context) {
 //	@Failure		600				{object}	api.BusinessError
 //	@Router			/statistic/cost/basic/list [get]
 func listBasicCostStatHandler(c *gin.Context) {
-	api.Wrap(listBasicCostStat)(c)
+	api.Wrap(listCostStat)(c)
 }
 
 // listTxHandler godoc
@@ -199,37 +196,4 @@ func RegisterRouter(router *gin.Engine) {
 	txRoute.GET("detail", getTxDetailHandler)
 
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-}
-
-func getSubmitEvent(hash string) ([]*SubmissionNode, error) {
-	rcpt, err := sdk.Eth.TransactionReceipt(common.HexToHash(hash))
-	if err != nil {
-		return nil, err
-	}
-
-	var nodes []*SubmissionNode
-	for _, log := range rcpt.Logs {
-		addr := log.Address.String()
-		sig := log.Topics[0].String()
-		if !strings.EqualFold(addr, flowAddr) || sig != flowSubmitSig {
-			continue
-		}
-
-		flowSubmit, err := nhContract.DummyFlowFilterer().ParseSubmit(*log.ToEthLog())
-		if err != nil {
-			return nil, err
-		}
-
-		nodeArr := flowSubmit.Submission.Nodes
-		for _, n := range nodeArr {
-			node := SubmissionNode{
-				Root:   "0x" + hex.EncodeToString(n.Root[:]),
-				Height: n.Height,
-			}
-			nodes = append(nodes, &node)
-		}
-		break
-	}
-
-	return nodes, nil
 }

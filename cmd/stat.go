@@ -34,14 +34,8 @@ func startStatService(*cobra.Command, []string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 
-	stTx := stat.MustNewStatTx(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
-	go stTx.DoStat(ctx, &wg)
 	stSubmit := stat.MustNewStatSubmit(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
 	go stSubmit.DoStat(ctx, &wg)
-	stBasicCost := stat.MustNewStatBasicCost(&cfg, dataCtx.DB, dataCtx.Eth, startTime)
-	go stBasicCost.DoStat(ctx, &wg)
-	stUplinkRate := stat.MustNewUplinkRateStat(dataCtx.DB)
-	go stUplinkRate.DoStat(ctx, &wg)
 
 	GracefulShutdown(&wg, cancel)
 }

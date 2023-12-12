@@ -38,9 +38,7 @@ type Syncer struct {
 }
 
 type storeData struct {
-	txs            []*store.Tx
-	erc20Transfers []*store.Erc20Transfer
-	submits        []*store.Submit
+	submits []*store.Submit
 }
 
 // MustNewSyncer creates an instance of Syncer to sync blockchain data.
@@ -93,7 +91,7 @@ func (s *Syncer) mustLoadLastSyncBlock() {
 func (s *Syncer) loadLastSyncBlock() (loaded bool, err error) {
 	maxBlock, ok, err := s.db.MaxBlock()
 	if err != nil {
-		return false, errors.WithMessage(err, "failed to get max block from block table")
+		return false, errors.WithMessage(err, "Failed to get max block from block table")
 	}
 
 	if ok {
@@ -122,7 +120,7 @@ func (s *Syncer) Sync(ctx context.Context, wg *sync.WaitGroup) {
 	ticker := time.NewTicker(s.syncIntervalCatchUp)
 	defer ticker.Stop()
 
-	logrus.Info("Syncer starting to sync eth data")
+	logrus.Info("Syncer starting to sync data")
 	for {
 		select {
 		case <-ctx.Done():
@@ -132,15 +130,13 @@ func (s *Syncer) Sync(ctx context.Context, wg *sync.WaitGroup) {
 			if err := s.doTicker(ticker); err != nil {
 				logrus.WithError(err).
 					WithField("currentBlock", s.currentBlock).
-					Warn("Syncer failed to sync eth data")
+					Info("Syncer failed to sync eth data")
 			}
 		}
 	}
 }
 
 func (s *Syncer) doTicker(ticker *time.Ticker) error {
-	logrus.Debug("Syncer ticking")
-
 	complete, err := s.syncOnce()
 
 	if err != nil {
@@ -169,7 +165,7 @@ func (s *Syncer) syncOnce() (bool, error) {
 	}
 
 	// get eth data
-	data, err := queryEthData(s.sdk, curBlock)
+	data, err := getEthData(s.sdk, curBlock)
 	if err != nil {
 		return false, err
 	}
@@ -192,7 +188,7 @@ func (s *Syncer) syncOnce() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if err = s.db.Push(block, sd.txs, sd.erc20Transfers, sd.submits); err != nil {
+	if err = s.db.Push(block, sd.submits); err != nil {
 		return false, err
 	}
 
@@ -285,9 +281,7 @@ func (s *Syncer) revertReorgData(revertBlock uint64) error {
 
 func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 	blockTime := time.Unix(int64(data.Block.Timestamp), 0)
-	var transfers []*store.Erc20Transfer
 	var submits []*store.Submit
-	var txs []*store.Tx
 
 	for _, t := range data.Block.Transactions.Transactions() {
 		rcpt := data.Receipts[t.Hash]
@@ -296,14 +290,6 @@ func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 		}
 
 		for _, log := range rcpt.Logs {
-			transfer, err := s.decodeErc20Transfer(&blockTime, log)
-			if err != nil {
-				return nil, err
-			}
-			if transfer != nil {
-				transfers = append(transfers, transfer)
-			}
-
 			submit, err := s.decodeSubmit(blockTime, log)
 			if err != nil {
 				return nil, err
@@ -312,17 +298,9 @@ func (s *Syncer) parseEthData(data *store.EthData) (*storeData, error) {
 				submits = append(submits, submit)
 			}
 		}
-
-		if len(submits) > 0 {
-			tx, err := s.catchupSyncer.convertTx(blockTime, &t, rcpt)
-			if err != nil {
-				return nil, err
-			}
-			txs = append(txs, tx)
-		}
 	}
 
-	return &storeData{txs, transfers, submits}, nil
+	return &storeData{submits}, nil
 }
 
 func (s *Syncer) decodeSubmit(blkTime time.Time, log *types.Log) (*store.Submit, error) {
@@ -332,7 +310,7 @@ func (s *Syncer) decodeSubmit(blkTime time.Time, log *types.Log) (*store.Submit,
 		return nil, nil
 	}
 
-	submit, err := store.NewSubmit(&blkTime, log, nhContract.DummyFlowFilterer())
+	submit, err := store.NewSubmit(blkTime, log, nhContract.DummyFlowFilterer())
 	if err != nil {
 		return nil, err
 	}
@@ -342,37 +320,7 @@ func (s *Syncer) decodeSubmit(blkTime time.Time, log *types.Log) (*store.Submit,
 		return nil, err
 	}
 
-	submit.SenderId = senderId
+	submit.SenderID = senderId
 
 	return submit, nil
-}
-
-func (s *Syncer) decodeErc20Transfer(blkTime *time.Time, log *types.Log) (*store.Erc20Transfer, error) {
-	addr := log.Address.String()
-	sig := log.Topics[0].String()
-	if !strings.EqualFold(addr, s.erc20Addr) || sig != s.erc20TransferSig || len(log.Topics) < 3 ||
-		log.Topics[2].String()[26:] != s.flowAddr[2:] {
-		return nil, nil
-	}
-
-	transfer, err := store.NewErc20Transfer(blkTime, log, nhContract.DummyErc20TokenFilterer())
-	if err != nil {
-		return nil, err
-	}
-
-	addrIds := [3]uint64{}
-	adders := []string{transfer.Contract, transfer.From, transfer.To}
-	for i, adder := range adders {
-		addrId, err := s.db.AddressStore.Add(nil, adder, *blkTime)
-		if err != nil {
-			return nil, err
-		}
-		addrIds[i] = addrId
-	}
-
-	transfer.ContractId = addrIds[0]
-	transfer.FromId = addrIds[1]
-	transfer.ToId = addrIds[2]
-
-	return transfer, nil
 }

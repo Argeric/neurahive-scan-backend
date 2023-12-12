@@ -4,7 +4,7 @@ RUN mkdir /build
 WORKDIR /build
 COPY go.mod go.sum ./
 # you may use `GOPROXY` to speed it up in Mainland China.
-RUN  GOPROXY=https://goproxy.cn,direct go mod download
+# RUN GOPROXY=https://goproxy.cn,direct go mod download
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o neurahive .

@@ -6,54 +6,52 @@ import (
 	"github.com/Conflux-Chain/neurahive-scan/stat"
 	"github.com/Conflux-Chain/neurahive-scan/store"
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 	"strconv"
 )
 
+type Type int
+
+const (
+	StorageStatType Type = iota
+	TxStatType
+	CostStatType
+)
+
 func dashboard(c *gin.Context) (interface{}, error) {
-	dataUplinkRate, exist, err := db.ConfigStore.Get(store.CfgDataUplinkRate)
+	submitStat, err := db.SubmitStatStore.LastByType(stat.Day)
 	if err != nil {
 		return nil, commonApi.ErrInternal(err)
 	}
-	if !exist {
-		return nil, ErrConfigNotFound
-	}
-
-	costStat, err := db.CostStatStore.LastByType(stat.Day)
-	if err != nil {
-		return nil, err
-	}
-	if costStat == nil {
-		return nil, errors.New("Storage basic cost not stat.")
+	if submitStat == nil {
+		return nil, ErrStorageCostNotStat
 	}
 
 	storageBasicCost := StorageBasicCost{
 		TokenInfo:      *chargeToken,
-		BasicCostTotal: strconv.FormatUint(costStat.BasicCostTotal, 10),
+		BasicCostTotal: strconv.FormatUint(submitStat.BasicCostTotal, 10),
 	}
 	result := Dashboard{
-		AverageUplinkRate: dataUplinkRate,
-		StorageBasicCost:  storageBasicCost,
+		StorageBasicCost: storageBasicCost,
 	}
 
 	return result, nil
 }
 
-func listTxStat(c *gin.Context) (interface{}, error) {
-	return queryStat(c, db.DB.Model(&store.TxStat{}), new([]store.TxStat))
-}
-
 func listDataStat(c *gin.Context) (interface{}, error) {
-	return queryStat(c, db.DB.Model(&store.SubmitStat{}), new([]store.SubmitStat))
+	return getSubmitStatByType(c, StorageStatType)
 }
 
-func listBasicCostStat(c *gin.Context) (interface{}, error) {
-	return queryStat(c, db.DB.Model(&store.CostStat{}), new([]store.CostStat))
+func listTxStat(c *gin.Context) (interface{}, error) {
+	return getSubmitStatByType(c, TxStatType)
 }
 
-func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}, error) {
+func listCostStat(c *gin.Context) (interface{}, error) {
+	return getSubmitStatByType(c, CostStatType)
+}
+
+func getSubmitStatByType(c *gin.Context, t Type) (interface{}, error) {
 	var statP statParam
 	if err := c.ShouldBind(&statP); err != nil {
 		return nil, err
@@ -78,8 +76,10 @@ func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}
 	if statP.MaxTimestamp != 0 {
 		conds = append(conds, MaxTimestamp(statP.MaxTimestamp))
 	}
+	dbRaw := db.DB.Model(&store.SubmitStat{})
 	dbRaw.Scopes(conds...)
 
+	records := new([]store.SubmitStat)
 	total, err := db.List(dbRaw, statP.isDesc(), statP.Skip, statP.Limit, records)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,44 @@ func queryStat(c *gin.Context, dbRaw *gorm.DB, records interface{}) (interface{}
 
 	result := make(map[string]interface{})
 	result["total"] = total
-	result["list"] = records
+
+	switch t {
+	case StorageStatType:
+		list := make([]DataStat, 0)
+		for _, stat := range *records {
+			list = append(list, DataStat{
+				StatTime:  stat.StatTime,
+				FileCount: stat.FileCount,
+				FileTotal: stat.FileTotal,
+				DataSize:  stat.DataSize,
+				DataTotal: stat.DataTotal,
+			})
+		}
+		result["list"] = list
+	case TxStatType:
+		list := make([]TxStat, 0)
+		for _, stat := range *records {
+			list = append(list, TxStat{
+				StatTime: stat.StatTime,
+				TxCount:  stat.FileCount,
+				TxTotal:  stat.FileTotal,
+			})
+		}
+		result["list"] = list
+	case CostStatType:
+		list := make([]CostStat, 0)
+		for _, stat := range *records {
+			list = append(list, CostStat{
+				StatTime:       stat.StatTime,
+				BasicCost:      stat.BasicCost,
+				BasicCostTotal: stat.BasicCostTotal,
+			})
+		}
+		result["list"] = list
+	default:
+		return nil, ErrStatTypeNotSupported
+	}
+
 	return result, nil
 }
 
